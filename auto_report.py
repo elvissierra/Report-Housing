@@ -14,7 +14,7 @@ def run_auto_report(input_path: str, config_path: str, output_path: str):
 
 if __name__ == "__main__":
     run_auto_report(
-        input_path="auto_report_pipeline/csv_files/Test_Report.csv",
-        config_path="auto_report_pipeline/csv_files/report_config.csv",
-        output_path="auto_report_pipeline/csv_files/Analytics_Report.csv"
+        input_path="csv_files/Test_Report.csv",
+        config_path="csv_files/report_config.csv",
+        output_path="csv_files/Analytics_Report.csv"
     )
