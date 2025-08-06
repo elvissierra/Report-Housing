@@ -1,6 +1,6 @@
 import pandas as pd
 import re
-from auto_report_pipeline.utils import clean_list_string
+from utils import clean_list_string
 
 """
 COLUMN
