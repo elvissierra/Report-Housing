@@ -37,7 +37,9 @@ def generate_column_report(report_df: pd.DataFrame, config_df: pd.DataFrame) -> 
     total_rows = len(report_df)
     cfg = config_df.copy()
     cfg.columns = cfg.columns.str.strip().str.lower().str.replace(" ", "_")
-    cfg["column"] = cfg["column"].astype(str).str.strip()
+    cfg["column"] = (
+        cfg["column"].astype(str).str.strip().str.lower().str.replace(" ", "_")
+    )
 
     flags = [
         "aggregate",

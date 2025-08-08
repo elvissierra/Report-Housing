@@ -4,17 +4,20 @@ from extract import load_csv
 from transform import generate_column_report
 from report_generator import assemble_report, save_report
 
-# Coupled with auto_report_pipeline dir
 
-
-def run_auto_report(input_path: str, config_df: pd.DataFrame, output_path: str, multi_sheet: bool = False):
-    # Handle multi-sheet Excel workbooks
+def run_auto_report(
+    input_path: str,
+    config_df: pd.DataFrame,
+    output_path: str,
+    multi_sheet: bool = False,
+):
+    # Handle multi-sheet workbook
     if multi_sheet and input_path.lower().endswith((".xls", ".xlsx")):
         sheets = pd.read_excel(input_path, sheet_name=None)
         for sheet_name, df_sheet in sheets.items():
             report_blocks = generate_column_report(df_sheet, config_df)
             final_report = assemble_report(report_blocks)
-            # Construct output filename per sheet
+            # per sheet
             sheet_output = output_path.replace(".csv", f"_{sheet_name}.csv")
             save_report(final_report, sheet_output)
         return
@@ -29,20 +32,28 @@ if __name__ == "__main__":
     parser.add_argument(
         "--config-path",
         required=True,
-        help="Path to report config CSV (first two rows must be INPUT/OUTPUT)"
+        help="Path to report_config CSV (first two rows set to be INPUT/OUTPUT)",
     )
     parser.add_argument(
-        "--multi-sheet",
-        action="store_true",
-        help="Process all sheets in an Excel workbook"
+        "--multi-sheet", action="store_true", help="Process all sheets in work book."
     )
     args = parser.parse_args()
 
-    # Read input/output paths from top two rows of config
     raw_cfg = pd.read_csv(args.config_path, header=None, nrows=2)
-    input_path = raw_cfg.iloc[0, 1]
-    output_path = raw_cfg.iloc[1, 1]
-    # Load actual config table, skipping the first two rows
+    first_row = raw_cfg.iloc[0].tolist()
+    if "INPUT" in first_row:
+        in_row = first_row.index("INPUT")
+        input_path = raw_cfg.iloc[0, in_row + 1]
+    else:
+        raise ValueError("CONFIG ERROR: 'INPUT' label not found in first row")
+
+    second_row = raw_cfg.iloc[1].tolist()
+    if "OUTPUT" in second_row:
+        out_row = second_row.index("OUTPUT")
+        output_path = raw_cfg.iloc[1, out_row + 1]
+    else:
+        raise ValueError("CONFIG ERROR: 'OUTPUT' label not found in second row")
+    # Load actual config table, skipping the first two rows for the input/output paths
     config_df = pd.read_csv(args.config_path, header=0, skiprows=2)
 
     run_auto_report(
