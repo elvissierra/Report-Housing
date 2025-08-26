@@ -271,15 +271,11 @@ def generate_dynamic_report(
 
 
 if __name__ == "__main__":
-    # report directory fix
     current_dir = os.getcwd()
     dir_name = os.path.basename(current_dir)
-    # if dir_name == 'csv_files':
-    #    report_dir = ''
-    # elif dir_name == 'atx-movate-places':
+
     report_dir = "auto_report_pipeline/csv_files/"
-    # else:
-    #    raise FileNotFoundError(f"Unrecognized directory '{dir_name}'. No valid report_config found.")
+
     latest = find_latest_report(report_dir)
     if not latest:
         raise FileNotFoundError("No valid report_config found.")
