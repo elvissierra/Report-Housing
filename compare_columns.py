@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 """
-compare_columns.py
-
 Given a CSV with 2 or more text columns, compare the columns row‑by‑row and
 emit the differences between a "baseline" column and the others.
 
@@ -47,16 +45,13 @@ from typing import Iterable, List, Tuple
 
 # ----------------------------- Tokenization ---------------------------------
 
-def sentence_split(text: str) -> List[str]:
-    # Very light sentence splitter based on punctuation.
-    # Keeps punctuation as delimiters (not tokens) at sentence boundaries.
+def sentence_delimitter(text: str) -> List[str]:
     parts = re.split(r"(?<=[.!?])\s+", text.strip()) if text else []
     return [p for p in parts if p]
 
 
 def word_tokenize(text: str) -> List[str]:
     # Split on whitespace but keep punctuation as separate tokens
-    # so diffs can highlight commas, etc.
     return re.findall(r"\w+|[^\w\s]", text or "")
 
 
@@ -76,7 +71,7 @@ def normalize_tokens(tokens: List[str], lower: bool, strip_punct: bool, collapse
             continue
         out.append(t)
     if collapse_ws:
-        # When re-joining later, callers should join with a single space
+        # should join with a single space
         pass
     return out
 
@@ -84,7 +79,7 @@ def normalize_tokens(tokens: List[str], lower: bool, strip_punct: bool, collapse
 # ------------------------------- Diff logic ---------------------------------
 
 def diff_tokens(a_tokens: List[str], b_tokens: List[str]) -> Tuple[List[str], List[str], List[str]]:
-    """Return (added_in_b, removed_from_a, markup_inline).
+    """ Return (added_in_b, removed_from_a, markup_inline).
 
     - added_in_b: tokens that appear in b but not in a (by diff ops)
     - removed_from_a: tokens that appear in a but not in b
@@ -121,7 +116,6 @@ def diff_tokens(a_tokens: List[str], b_tokens: List[str]) -> Tuple[List[str], Li
                 added.extend(b_seg)
                 markup_segments.append("{+" + " ".join(b_seg) + "+}")
         else:
-            # Shouldn't happen
             pass
 
     return added, removed, markup_segments
@@ -130,7 +124,6 @@ def diff_tokens(a_tokens: List[str], b_tokens: List[str]) -> Tuple[List[str], Li
 # ------------------------------- I/O Helpers --------------------------------
 
 def detect_default_columns(header: List[str]) -> List[str]:
-    # Simple heuristic: choose the first two non-empty headers.
     chosen: List[str] = []
     for h in header:
         if h and h.strip():
@@ -163,13 +156,13 @@ def main(argv: List[str] | None = None) -> int:
 
     args = p.parse_args(argv)
 
-    # Select tokenizer
+    # select tokenizer
     if args.granularity == 'word':
         tokenizer = word_tokenize
     elif args.granularity == 'char':
         tokenizer = char_tokenize
     else:
-        tokenizer = sentence_split
+        tokenizer = sentence_delimitter
 
     with open(args.input, newline='', encoding='utf-8') as f_in:
         reader = csv.DictReader(f_in)
@@ -183,7 +176,7 @@ def main(argv: List[str] | None = None) -> int:
         if not compare_cols:
             raise SystemExit('Need at least two columns to compare.')
 
-        # Prepare output header: keep all original columns + diff columns per compare target
+        # prepare output header: keep all original columns + diff columns per compare target
         out_header = list(header)
         for col in compare_cols:
             out_header.extend([
