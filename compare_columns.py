@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
 """
+ ~ Stand alone script
 Given a CSV with 2 or more text columns, compare the columns row‑by‑row and
 emit the differences between a "baseline" column and the others.
 

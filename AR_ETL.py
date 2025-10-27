@@ -1,3 +1,7 @@
+"""
+~ Depracated stand alone script now auto_report.py
+"""
+
 import pandas as pd
 import csv
 import os
