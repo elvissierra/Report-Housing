@@ -16,6 +16,9 @@ def run_auto_report(
     if multi_sheet and input_path.lower().endswith((".xls", ".xlsx")):
         sheets = pd.read_excel(input_path, sheet_name=None)
         for sheet_name, df_sheet in sheets.items():
+            df_sheet.columns = (
+                df_sheet.columns.str.strip().str.lower().str.replace(" ", "_")
+            )
             report_blocks = generate_column_report(df_sheet, config_df)
             final_report = assemble_report(report_blocks)
             # per sheet
