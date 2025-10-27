@@ -1,6 +1,7 @@
 import pandas as pd
 import re
 
+# Data Prepping - Standardize
 
 def safe_lower(val):
     return str(val).strip().lower() if pd.notna(val) else ""

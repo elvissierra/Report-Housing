@@ -4,6 +4,7 @@ from extract import load_csv
 from transform import generate_column_report
 from report_generator import assemble_report, save_report
 
+# Main Data Reporting Generator
 
 def run_auto_report(
     input_path: str,

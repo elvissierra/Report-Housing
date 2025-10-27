@@ -2,6 +2,8 @@ import pandas as pd
 import re
 from utils import clean_list_string
 
+# Data Manipulation
+
 """
 COLUMN
 Is the column in the report to be manipulated.

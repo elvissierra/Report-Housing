@@ -1,5 +1,6 @@
 import pandas as pd
 
+# Report Assembly
 
 def assemble_report(sections: list) -> pd.DataFrame:
     """
