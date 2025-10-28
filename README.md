@@ -96,3 +96,29 @@ If `--multi-sheet` is provided with an Excel file:
 - Keep unused config columns for documentation, such as `INTENDED PURPOSE`
 
 ---
+
+## Insights (Correlations & Crosstabs)
+
+The tool can optionally produce two additional CSV artifacts that summarize relationships between columns. Enable this by adding three simple lines to your `report_config.csv`:
+
+INSIGHTS SOURCES, col_a|col_b|col_c
+INSIGHTS TARGETS, col_x|col_y
+INSIGHTS THRESHOLD, 0.25
+
+### Meaning
+- **INSIGHTS SOURCES**: pipe-separated list of columns to compare from.
+- **INSIGHTS TARGETS**: pipe-separated list of columns to compare to.
+- **INSIGHTS THRESHOLD**: minimum absolute correlation to include in results. Typical values: `0.15`–`0.30`.
+
+### Outputs
+Running the report will also create, in the same folder as your main output:
+- `correlation_results.csv` — strongest relationships by pair:
+  - numeric↔numeric: Pearson correlation
+  - categorical↔categorical: Cramér’s V (bias-corrected)
+  - mixed: one-hot dummy correlation, reporting the strongest absolute value
+- `crosstabs_output.csv` — contingency tables for categorical↔categorical pairs
+
+### Notes
+- Column name matching is case-insensitive and tolerant of spaces vs underscores.
+- If a listed column does not exist, it is skipped with a console notice.
+- Duplicate column names are handled during insights by temporarily de-duplicating.
