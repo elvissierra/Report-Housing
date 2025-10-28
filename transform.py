@@ -103,7 +103,7 @@ def generate_column_report(report_df: pd.DataFrame, config_df: pd.DataFrame) -> 
             counts = s.value_counts()
             duplicate = counts[counts > 1]
             section = [[hdr, "Duplicates", "Instances"]]
-            for value, cnt in sorted(duplicate.items(), kry=lambda x: (-int(x[1]), str(x[0]))):
+            for value, cnt in sorted(duplicate.items(), key=lambda x: (-int(x[1]), str(x[0]))):
                 section.append(["", value, int(cnt)])
             sections.append(section)
             continue
