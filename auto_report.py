@@ -1,3 +1,4 @@
+import os
 import argparse
 import pandas as pd
 from extract import load_csv
@@ -24,11 +25,28 @@ def run_auto_report(
             # per sheet
             sheet_output = output_path.replace(".csv", f"_{sheet_name}.csv")
             save_report(final_report, sheet_output)
+            try:
+                from transform import run_basic_insights
+                cfg_ins = config_df.copy()
+                cfg_ins.columns = cfg_ins.columns.str.strip().str.lower().str.replace(" ", "_")
+                out_dir = os.path.dirname(sheet_output) or "."
+                run_basic_insights(df_sheet, config_df=cfg_ins, output_dir=out_dir)
+            except Exception as e:
+                print(f"[insights] Skipped due to error on sheet '{sheet_name}': {e}")
         return
     df = load_csv(input_path)
     report_blocks = generate_column_report(df, config_df)
     final_report = assemble_report(report_blocks)
     save_report(final_report, output_path)
+    try:
+        from transform import run_basic_insights
+        cfg_ins = config_df.copy()
+        cfg_ins.columns = cfg_ins.columns.str.strip().str.lower().str.replace(" ", "_")
+        out_dir = os.path.dirname(output_path) or "."
+        run_basic_insights(df, config_df=cfg_ins, output_dir=out_dir)
+    except Exception as e:
+        print(f"[insights] Skipped due to error: {e}")
+
 
 
 if __name__ == "__main__":

@@ -10,6 +10,8 @@ def safe_lower(val):
 def split_values(value, delimiter: str) -> list:
     if pd.isna(value) or not isinstance(value, (str, int, float)):
         return []
+    if not delimiter:
+        return []
     try:
         return [v.strip() for v in str(value).split(delimiter) if v.strip()]
     except Exception:
@@ -27,7 +29,8 @@ def clean_string(value: str) -> str:
 def clean_list_string(val):
     if pd.isna(val):
         return ""
-    val = str(val)
-    val = re.sub(r"[^a-zA-Z0-9, ]+", " ", val)
-    val = re.sub(r"\s+", " ", val)
-    return val.strip()
+    s = str(val)
+    # Keep letters, digits, spaces, commas, and common symbols often present in data
+    s = re.sub(r"[^a-zA-Z0-9,%_\-/() ]+", " ", s)
+    s = re.sub(r"\s+", " ", s)
+    return s.strip()
