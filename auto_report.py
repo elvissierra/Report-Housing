@@ -3,7 +3,7 @@ import argparse
 import pandas as pd
 from extract import load_csv
 from transform import generate_column_report
-from report_generator import assemble_report, save_report
+from generator import assemble_report, save_report
 
 # Main Data Reporting Generator
 
