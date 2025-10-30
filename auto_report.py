@@ -1,3 +1,17 @@
+"""
+Script to output a report based on Quip congfigurations
+v4: Next step- add visual data
+"""
+
+__author__ = "Elvis Sierra"
+__email__ = "elvis_sierra@apple.com"
+__version__ = "4.5"
+__status__ = "dev"
+__date_created__ = "6.11.2025"
+__last_modified__ = "10.30.2025"
+
+
+
 import os
 import argparse
 import pandas as pd
