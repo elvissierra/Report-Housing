@@ -43,6 +43,24 @@ To clean any marking from a string, this is to only output character
 
 
 def generate_column_report(report_df: pd.DataFrame, config_df: pd.DataFrame) -> list:
+    """
+    Build the long-form report sections according to the declarative `config_df`.
+
+    The algorithm:
+    1) Normalize config flags (aggregate, root_only, separate_nodes, average, duplicate, clean).
+    2) For each referenced column in the data:
+       - If `clean` is set: emit a cleaned listing of values (one per row).
+       - If `duplicate` is set: count normalized duplicates and list counts.
+       - If `average` is set: compute numeric mean (preserving % suffix if present).
+       - Else: compute distribution or targeted counts, optionally splitting by delimiter,
+         root_only extraction, or matching an explicit `value`.
+    3) Each section is appended to the combined output with a blank spacer row.
+
+    Returns
+    -------
+    list[list[str|int]]
+        A list of "blocks", each block being a 3-column section ready for assembly.
+    """
     # total tasks used / not calling atm
     total_config = len(config_df)
     # tatal rows read / replacing total config atm
@@ -53,6 +71,7 @@ def generate_column_report(report_df: pd.DataFrame, config_df: pd.DataFrame) -> 
         cfg["column"].astype(str).str.strip().str.lower().str.replace(" ", "_")
     )
 
+    # Normalize boolean-like flags in the config (accept 'yes'/'true', otherwise False)
     flags = [
         "aggregate",
         "root_only",
@@ -90,6 +109,7 @@ def generate_column_report(report_df: pd.DataFrame, config_df: pd.DataFrame) -> 
 
         is_clean = cfg.loc[cfg["column"] == col_name, "clean"].any()
         if is_clean:
+            # Fast-path behavior toggles controlled entirely by config flags
             clean_section = [[hdr, "", "Cleaned"]]
             cleaned = report_df[col_name].apply(clean_list_string)
             for val in cleaned:
@@ -98,8 +118,9 @@ def generate_column_report(report_df: pd.DataFrame, config_df: pd.DataFrame) -> 
             continue
 
         if cfg.loc[cfg["column"] == col_name, "duplicate"].any():
+            # Fast-path behavior toggles controlled entirely by config flags
             s = report_df[col_name].fillna("").astype(str).str.strip().str.lower()
-            # raw = report_df[col_name].fillna("").astype(str)
+            # Normalize values for duplicate detection to avoid case/space noise
             counts = s.value_counts()
             duplicate = counts[counts > 1]
             section = [[hdr, "Duplicates", "Instances"]]
@@ -109,7 +130,9 @@ def generate_column_report(report_df: pd.DataFrame, config_df: pd.DataFrame) -> 
             continue
 
         if cfg.loc[cfg["column"] == col_name, "average"].any():
+            # Fast-path behavior toggles controlled entirely by config flags
             raw = report_df[col_name].astype(str).str.strip()
+            # Support numbers with optional '%' suffix; non-numeric entries are coerced to NaN
             nums = pd.to_numeric(raw.str.rstrip("%"), errors="coerce")
             if nums.notna().sum() == 0:
                 sections.append([[hdr, "", "Average"], ["No numeric data", "", ""]])
@@ -128,6 +151,7 @@ def generate_column_report(report_df: pd.DataFrame, config_df: pd.DataFrame) -> 
                 series = report_df[col_name].fillna("").astype(str)
                 # Delimiter logic for separate_nodes
                 if r["separate_nodes"]:
+                    # Split nested lists by delimiter, explode into rows, and normalize for counting
                     delim = r["delimiter"] if pd.notna(r["delimiter"]) and str(r["delimiter"]).strip() != "" else None
                     if delim:
                         items = (
@@ -161,6 +185,7 @@ def generate_column_report(report_df: pd.DataFrame, config_df: pd.DataFrame) -> 
             for _, r in entries.iterrows():
                 series = report_df[col_name].fillna("").astype(str)
                 if r["separate_nodes"]:
+                    # Split nested lists by delimiter, explode into rows, and normalize for counting
                     delim = r["delimiter"] if pd.notna(r["delimiter"]) and str(r["delimiter"]).strip() != "" else None
                     if delim:
                         items = (
@@ -176,6 +201,7 @@ def generate_column_report(report_df: pd.DataFrame, config_df: pd.DataFrame) -> 
                         label = val or "None"
                         label_counts[label] = label_counts.get(label, 0) + 1
                 elif r["aggregate"]:
+                    # Fast-path behavior toggles controlled entirely by config flags
                     delim = r["delimiter"] if pd.notna(r["delimiter"]) and str(r["delimiter"]).strip() != "" else None
                     if r["root_only"] and delim:
                         series = series.str.split(re.escape(str(delim)), expand=True)[0]
@@ -201,6 +227,7 @@ def generate_column_report(report_df: pd.DataFrame, config_df: pd.DataFrame) -> 
                     label = r["value"] or "None"
                     label_counts[label] = label_counts.get(label, 0) + cnt
 
+        # Emit a three-column section with percentage of total rows and absolute count
         section = [[hdr, "%", "Count"]]
         for label, cnt in sorted(label_counts.items(), key=lambda x: (-x[1], str(x[0]))):
             pct = round(cnt / total_rows * 100, 2) if total_rows else 0
@@ -212,6 +239,7 @@ def generate_column_report(report_df: pd.DataFrame, config_df: pd.DataFrame) -> 
 # ===== Insights / Correlations =====
 
 def is_categorical_column(series: pd.Series, max_unique_values: int = 20) -> bool:
+    """Heuristic: treat as categorical if dtype=object or unique count is small."""
     try:
         unique_count = series.nunique(dropna=True)
     except Exception:
@@ -220,7 +248,7 @@ def is_categorical_column(series: pd.Series, max_unique_values: int = 20) -> boo
 
 
 def cramers_v_stat(col_a: pd.Series, col_b: pd.Series) -> float:
-    """ Cramér's V for two categorical columns """
+    """Compute Cramér's V association for two categorical variables with bias correction."""
     contingency_table = pd.crosstab(col_a, col_b)
     if contingency_table.shape[0] < 2 or contingency_table.shape[1] < 2:
         return np.nan
@@ -258,7 +286,14 @@ def compute_correlations_and_crosstabs(
     verbose: bool = True,
     include_type: bool = False,
 ) -> pd.DataFrame:
-    """ Compare selected columns and persist crosstabs and strongest correlations. """
+    """
+    Compare selected columns and persist two artifacts:
+    - Crosstabs for categorical×categorical pairs (written as CSV sections).
+    - A sorted CSV of correlations above `correlation_threshold`.
+
+    Supports numeric×numeric (Pearson r), categorical×categorical (Cramér's V),
+    and mixed pairs (max |r| across one-hot dummies vs numeric).
+    """
     from pandas.api.types import is_numeric_dtype
 
     correlation_rows = []
@@ -390,14 +425,12 @@ def compute_correlations_and_crosstabs(
 
 def _parse_insights_from_config(config_df: pd.DataFrame) -> Dict[str, object]:
     """
-    Extract insights directives from report_config.
+    Extract insights directives from the report config.
 
-    Recognized `COLUMN` values (case-insensitive):
-      - INSIGHTS SOURCES
-      - INSIGHTS TARGETS
-      - INSIGHTS THRESHOLD
-
-    Values are taken from the `VALUE` column; for sources/targets, separate names with '|'.
+    Recognized keys (case-insensitive in the COLUMN field):
+      - 'INSIGHTS SOURCES'   → VALUE contains pipe-separated column names
+      - 'INSIGHTS TARGETS'   → VALUE contains pipe-separated column names
+      - 'INSIGHTS THRESHOLD' → VALUE contains a float (e.g., 0.3)
     """
     def _norm_key_name(s: str) -> str:
         s = str(s or "").strip().lower()
@@ -455,7 +488,11 @@ def run_basic_insights(
     output_dir: str = ".",
 ):
     """
-    Run correlations and crosstabs as a second artifact next to the main report.
+    Convenience wrapper to run correlation/crosstab analysis next to the main report.
+
+    - De-duplicates duplicate column names (appending .1, .2…) to avoid collisions.
+    - Resolves configured source/target names against normalized headers.
+    - Emits `correlation_results.csv` and `crosstabs_output.csv` into `output_dir`.
     """
     directives = _parse_insights_from_config(config_df)
 

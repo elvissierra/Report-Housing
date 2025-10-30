@@ -46,22 +46,29 @@ from typing import Iterable, List, Tuple
 # ----------------------------- Tokenization ---------------------------------
 
 def sentence_delimitter(text: str) -> List[str]:
+    """Split text into sentences using punctuation as boundaries; drop empties."""
     parts = re.split(r"(?<=[.!?])\s+", text.strip()) if text else []
     return [p for p in parts if p]
 
 
 def word_tokenize(text: str) -> List[str]:
+    """Tokenize into words and standalone punctuation so diffs can track symbols."""
     # Split on whitespace but keep punctuation as separate tokens
     return re.findall(r"\w+|[^\w\s]", text or "")
 
 
 def char_tokenize(text: str) -> List[str]:
+    """Return a list of individual characters (character-level granularity)."""
     return list(text or "")
 
 
 # ----------------------------- Normalization --------------------------------
 
 def normalize_tokens(tokens: List[str], lower: bool, strip_punct: bool, collapse_ws: bool) -> List[str]:
+    """
+    Optionally lowercase and strip single-character punctuation tokens.
+    `collapse_ws` is applied later at string-join time in `join_tokens`.
+    """
     out: List[str] = []
     for t in tokens:
         if lower:
@@ -79,13 +86,20 @@ def normalize_tokens(tokens: List[str], lower: bool, strip_punct: bool, collapse
 # ------------------------------- Diff logic ---------------------------------
 
 def diff_tokens(a_tokens: List[str], b_tokens: List[str]) -> Tuple[List[str], List[str], List[str]]:
-    """ Return (added_in_b, removed_from_a, markup_inline).
-
-    - added_in_b: tokens that appear in b but not in a (by diff ops)
-    - removed_from_a: tokens that appear in a but not in b
-    - markup_inline: baseline `a` with {-added-} and [-removed-] markup applied
-      to illustrate differences inline.
     """
+    Compute a diff between `a_tokens` (baseline) and `b_tokens` (candidate).
+
+    Returns
+    -------
+    added_in_b : list[str]
+        Tokens present only in `b_tokens`.
+    removed_from_a : list[str]
+        Tokens present only in `a_tokens`.
+    markup_inline : list[str]
+        A sequence containing baseline tokens interleaved with
+        `[-removed-]` and `{+added+}` spans to visualize changes inline.
+    """
+    # Use difflib to obtain stable opcodes; disable autojunk so short texts aren't over-pruned
     sm = SequenceMatcher(a=a_tokens, b=b_tokens, autojunk=False)
     added: List[str] = []
     removed: List[str] = []
@@ -124,6 +138,7 @@ def diff_tokens(a_tokens: List[str], b_tokens: List[str]) -> Tuple[List[str], Li
 # ------------------------------- I/O Helpers --------------------------------
 
 def detect_default_columns(header: List[str]) -> List[str]:
+    """Heuristically pick the first two non-empty headers when --columns is omitted."""
     chosen: List[str] = []
     for h in header:
         if h and h.strip():
@@ -136,6 +151,7 @@ def detect_default_columns(header: List[str]) -> List[str]:
 
 
 def join_tokens(tokens: Iterable[str], collapse_ws: bool) -> str:
+    """Join tokens with single spaces; optionally collapse repeated whitespace."""
     if not tokens:
         return ""
     s = " ".join(tokens)
@@ -145,6 +161,7 @@ def join_tokens(tokens: Iterable[str], collapse_ws: bool) -> str:
 # --------------------------------- Main -------------------------------------
 
 def main(argv: List[str] | None = None) -> int:
+    """CLI for column-wise diffing. See module docstring for examples and options."""
     p = argparse.ArgumentParser(description="Compare CSV text columns and output differences.")
     p.add_argument('--input', '-i', required=True, help='Path to input CSV')
     p.add_argument('--output', '-o', required=True, help='Path to output CSV')
@@ -176,7 +193,7 @@ def main(argv: List[str] | None = None) -> int:
         if not compare_cols:
             raise SystemExit('Need at least two columns to compare.')
 
-        # prepare output header: keep all original columns + diff columns per compare target
+        # Preserve all original columns and append diff artifacts per compared column
         out_header = list(header)
         for col in compare_cols:
             out_header.extend([

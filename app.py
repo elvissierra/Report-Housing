@@ -6,7 +6,7 @@ import pandas as pd, io, zipfile, os, tempfile
 
 from extract import load_csv
 from transform import generate_column_report, run_basic_insights
-from report_generator import assemble_report, save_report
+from generator import assemble_report, save_report
 
 app = FastAPI()
 

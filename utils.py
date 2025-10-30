@@ -1,13 +1,20 @@
+"""
+Utility helpers for string normalization and token handling used across the pipeline.
+Keep these side-effect free so they can be reused in tests and notebooks.
+"""
+
 import pandas as pd
 import re
 
 # Data Prepping - Standardize
 
 def safe_lower(val):
+    """Lowercase a value safely; None/NaN → empty string to simplify downstream comparisons."""
     return str(val).strip().lower() if pd.notna(val) else ""
 
 
 def split_values(value, delimiter: str) -> list:
+    """Split a scalar by a delimiter into trimmed parts; robust to NaNs and non-strings."""
     if pd.isna(value) or not isinstance(value, (str, int, float)):
         return []
     if not delimiter:
@@ -19,14 +26,20 @@ def split_values(value, delimiter: str) -> list:
 
 
 def get_root_value(value: str, delimiter: str) -> str:
+    """Return the first token from `split_values`, or empty string when unavailable."""
     return split_values(value, delimiter)[0] if split_values(value, delimiter) else ""
 
 
 def clean_string(value: str) -> str:
+    """Trim surrounding whitespace for strings; pass non-strings through unchanged."""
     return str(value).strip() if isinstance(value, str) else value
 
 
 def clean_list_string(val):
+    """
+    Sanitize list-like display strings by removing exotic characters while
+    keeping common symbols (%, _ , - , /, parentheses). Collapse repeated spaces.
+    """
     if pd.isna(val):
         return ""
     s = str(val)

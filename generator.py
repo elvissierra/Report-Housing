@@ -4,7 +4,8 @@ import pandas as pd
 
 def assemble_report(sections: list) -> pd.DataFrame:
     """
-    Combines all report blocks into a long-form DataFrame.
+    Flatten a list of 3-column blocks into one DataFrame, inserting a blank spacer row
+    between blocks so the final CSV renders as visually separated sections.
     """
     final_rows = []
     for block in sections:
@@ -13,5 +14,6 @@ def assemble_report(sections: list) -> pd.DataFrame:
 
 
 def save_report(df: pd.DataFrame, output_path: str):
+    """Persist the assembled report to CSV without headers or index; print a success tick."""
     df.to_csv(output_path, index=False, header=False)
     print(f"✅ Report saved to {output_path}")

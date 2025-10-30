@@ -27,20 +27,46 @@ def run_auto_report(
     output_path: str,
     multi_sheet: bool = False,
 ):
+    """
+    Orchestrate the end-to-end report build.
+
+    Parameters
+    ----------
+    input_path : str
+        Path to the raw data file. Supports CSV and, when `multi_sheet=True`, Excel.
+    config_df : pd.DataFrame
+        Normalized configuration table (rows after the first two INPUT/OUTPUT rows).
+        Column names are expected to be lower_snake_case (the caller normalizes this).
+    output_path : str
+        Destination CSV for the assembled report.
+    multi_sheet : bool
+        If True and `input_path` is an Excel workbook, process every sheet and emit
+        one report per sheet (suffixing the sheet name).
+
+    Notes
+    -----
+    - This function delegates the transformation to `generate_column_report`,
+      the layout/assembly to `assemble_report`, and file persistence to `save_report`.
+    - If `transform.run_basic_insights` is available, it will also write two artifacts:
+      `correlation_results.csv` and `crosstabs_output.csv` next to the main output.
+    """
     # Handle multi-sheet workbook
     if multi_sheet and input_path.lower().endswith((".xls", ".xlsx")):
+        # Read all worksheets into a dict of {sheet_name: DataFrame}
         sheets = pd.read_excel(input_path, sheet_name=None)
         for sheet_name, df_sheet in sheets.items():
+            # Normalize headers to consistent lower_snake_case to match config driven keys
             df_sheet.columns = (
                 df_sheet.columns.str.strip().str.lower().str.replace(" ", "_")
             )
             report_blocks = generate_column_report(df_sheet, config_df)
             final_report = assemble_report(report_blocks)
-            # per sheet
+            # Emit an output per worksheet by suffixing the sheet name
             sheet_output = output_path.replace(".csv", f"_{sheet_name}.csv")
             save_report(final_report, sheet_output)
             try:
                 from transform import run_basic_insights
+                # Insights expect normalized column names; work on a copy to avoid side effects
                 cfg_ins = config_df.copy()
                 cfg_ins.columns = cfg_ins.columns.str.strip().str.lower().str.replace(" ", "_")
                 out_dir = os.path.dirname(sheet_output) or "."
@@ -48,12 +74,14 @@ def run_auto_report(
             except Exception as e:
                 print(f"[insights] Skipped due to error on sheet '{sheet_name}': {e}")
         return
+    # Fast path: CSV input or Excel treated as a single sheet
     df = load_csv(input_path)
     report_blocks = generate_column_report(df, config_df)
     final_report = assemble_report(report_blocks)
     save_report(final_report, output_path)
     try:
         from transform import run_basic_insights
+        # If insights utilities are present, compute correlations/crosstabs alongside the report
         cfg_ins = config_df.copy()
         cfg_ins.columns = cfg_ins.columns.str.strip().str.lower().str.replace(" ", "_")
         out_dir = os.path.dirname(output_path) or "."
@@ -65,6 +93,8 @@ def run_auto_report(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Auto Report Generator")
+    # CLI entrypoint: the first two rows of the config CSV hold INPUT/OUTPUT paths;
+    # the remaining rows are the declarative report instructions consumed by `transform`.
     parser.add_argument(
         "--config-path",
         required=True,
@@ -75,7 +105,9 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    # Load only the first two rows to extract INPUT/OUTPUT without parsing the whole config yet
     raw_cfg = pd.read_csv(args.config_path, header=None, nrows=2)
+    # Row 0 must contain the sentinel "INPUT" and its value in the next cell
     first_row = raw_cfg.iloc[0].tolist()
     if "INPUT" in first_row:
         in_row = first_row.index("INPUT")
@@ -83,13 +115,14 @@ if __name__ == "__main__":
     else:
         raise ValueError("CONFIG ERROR: 'INPUT' label not found in first row")
 
+    # Row 1 must contain the sentinel "OUTPUT" and its value in the next cell
     second_row = raw_cfg.iloc[1].tolist()
     if "OUTPUT" in second_row:
         out_row = second_row.index("OUTPUT")
         output_path = raw_cfg.iloc[1, out_row + 1]
     else:
         raise ValueError("CONFIG ERROR: 'OUTPUT' label not found in second row")
-    # Load actual config table, skipping the first two rows for the input/output paths
+    # The actual config begins on row 3 (index 2); preserve the header row from the file
     config_df = pd.read_csv(args.config_path, header=0, skiprows=2)
 
     run_auto_report(

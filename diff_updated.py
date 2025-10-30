@@ -9,8 +9,12 @@ import pandas as pd
 import argparse
 from pathlib import Path
 
-# Capture EVERYTHING after 'existing ' up to ", proposed",
-# and EVERYTHING after 'proposed ' up to ", index" — including any single-letter flag.
+# This pattern extracts four logical fields from a free-form audit string:
+# - 'existing'  : everything after the literal 'existing ' up to ', proposed'
+# - 'proposed'  : everything after 'proposed ' up to ', index'
+# - 'index'     : the integer value following 'index '
+# - 'is_meaningful' : the literal tail 'is meaningful true|false'
+# The non-greedy '.*?' ensures we stop at the next sentinel even if commas exist inside values.
 PATTERN = re.compile(
     r"""
     existing\s+(?P<existing>.*?)(?=,\s*proposed\b)   # keep flag if present
@@ -22,6 +26,7 @@ PATTERN = re.compile(
 )
 
 def extract_parts(text: str):
+    """Return a Series(existing, proposed, index, is_meaningful_str) parsed from one cell."""
     cols = ["existing", "proposed", "index", "is_meaningful_str"]
     if not isinstance(text, str):
         return pd.Series([None, None, None, None], index=cols)
@@ -40,12 +45,14 @@ def extract_parts(text: str):
     )
 
 def split_diff_updated(df: pd.DataFrame) -> pd.DataFrame:
+    """Vectorize `extract_parts` over the 'diff_updated' column and join back to the DataFrame."""
     parts = df["diff_updated"].apply(extract_parts)
     return pd.concat([df, parts], axis=1)
 
 # --- CLI runner ---
 
 def main():
+    """CLI wrapper: read input CSV, parse 'diff_updated', and write four clean columns."""
     parser = argparse.ArgumentParser(
         description=(
             "Parse the 'diff_updated' column from a CSV and emit four columns: "
