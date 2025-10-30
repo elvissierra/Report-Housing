@@ -26,7 +26,7 @@ def run_auto_report(
     config_df: pd.DataFrame,
     output_path: str,
     multi_sheet: bool = False,
-):
+) -> None:
     """
     Orchestrate the end-to-end report build.
 

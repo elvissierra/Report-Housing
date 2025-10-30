@@ -1,3 +1,4 @@
+from __future__ import annotations
 import pandas as pd
 import re
 from utils import clean_list_string
@@ -6,8 +7,7 @@ import csv
 from typing import Optional, List, Dict
 
 
-# Ensure we always operate on a Series, even if a split(expand=True) or odd selection returns a DataFrame
-def _ensure_series(obj):
+def _ensure_series(obj: pd.Series | pd.DataFrame) -> pd.Series:
     return obj.iloc[:, 0] if isinstance(obj, pd.DataFrame) else obj
 
 # Data Manipulation
@@ -42,7 +42,7 @@ To clean any marking from a string, this is to only output character
 """
 
 
-def generate_column_report(report_df: pd.DataFrame, config_df: pd.DataFrame) -> list:
+def generate_column_report(report_df: pd.DataFrame, config_df: pd.DataFrame) -> list[list[str | int]]:
     """
     Build the long-form report sections according to the declarative `config_df`.
 
@@ -486,7 +486,7 @@ def run_basic_insights(
     config_df: Optional[pd.DataFrame] = None,
     threshold: Optional[float] = None,
     output_dir: str = ".",
-):
+) -> Optional[pd.DataFrame]:
     """
     Convenience wrapper to run correlation/crosstab analysis next to the main report.
 
@@ -498,7 +498,7 @@ def run_basic_insights(
 
     eff_threshold = threshold if threshold is not None else directives.get("threshold", 0.2)
 
-    def _make_unique(cols):
+    def _make_unique(cols: list[str]) -> list[str]:
         seen = {}
         out = []
         for c in cols:

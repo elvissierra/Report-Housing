@@ -41,7 +41,7 @@ import csv
 import re
 import sys
 from difflib import SequenceMatcher
-from typing import Iterable, List, Tuple
+from typing import Iterable, List, Tuple, Callable
 
 # ----------------------------- Tokenization ---------------------------------
 
@@ -173,6 +173,7 @@ def main(argv: List[str] | None = None) -> int:
 
     args = p.parse_args(argv)
 
+    tokenizer: Callable[[str], List[str]]
     # select tokenizer
     if args.granularity == 'word':
         tokenizer = word_tokenize

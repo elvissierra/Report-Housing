@@ -1,4 +1,6 @@
 
+from __future__ import annotations
+
 """
  Stand alone script to compare columns in what was present and what is now present between strings.
  e.g. String original: "F 1541 Merivale Rd , …" String compared against: "D 1541 Ch Merivale , …"
@@ -25,7 +27,7 @@ PATTERN = re.compile(
     re.IGNORECASE | re.VERBOSE,
 )
 
-def extract_parts(text: str):
+def extract_parts(text: str) -> pd.Series:
     """Return a Series(existing, proposed, index, is_meaningful_str) parsed from one cell."""
     cols = ["existing", "proposed", "index", "is_meaningful_str"]
     if not isinstance(text, str):
@@ -51,7 +53,7 @@ def split_diff_updated(df: pd.DataFrame) -> pd.DataFrame:
 
 # --- CLI runner ---
 
-def main():
+def main() -> None:
     """CLI wrapper: read input CSV, parse 'diff_updated', and write four clean columns."""
     parser = argparse.ArgumentParser(
         description=(

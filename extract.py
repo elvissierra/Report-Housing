@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 I/O helpers for reading raw tabular data.
 
