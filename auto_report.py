@@ -11,7 +11,6 @@ __date_created__ = "6.11.2025"
 __last_modified__ = "10.30.2025"
 
 
-
 import os
 import argparse
 import pandas as pd
@@ -20,6 +19,7 @@ from transform import generate_column_report
 from generator import assemble_report, save_report
 
 # Main Data Reporting Generator
+
 
 def run_auto_report(
     input_path: str,
@@ -66,9 +66,12 @@ def run_auto_report(
             save_report(final_report, sheet_output)
             try:
                 from transform import run_basic_insights
+
                 # Insights expect normalized column names; work on a copy to avoid side effects
                 cfg_ins = config_df.copy()
-                cfg_ins.columns = cfg_ins.columns.str.strip().str.lower().str.replace(" ", "_")
+                cfg_ins.columns = (
+                    cfg_ins.columns.str.strip().str.lower().str.replace(" ", "_")
+                )
                 out_dir = os.path.dirname(sheet_output) or "."
                 run_basic_insights(df_sheet, config_df=cfg_ins, output_dir=out_dir)
             except Exception as e:
@@ -81,6 +84,7 @@ def run_auto_report(
     save_report(final_report, output_path)
     try:
         from transform import run_basic_insights
+
         # If insights utilities are present, compute correlations/crosstabs alongside the report
         cfg_ins = config_df.copy()
         cfg_ins.columns = cfg_ins.columns.str.strip().str.lower().str.replace(" ", "_")
@@ -88,7 +92,6 @@ def run_auto_report(
         run_basic_insights(df, config_df=cfg_ins, output_dir=out_dir)
     except Exception as e:
         print(f"[insights] Skipped due to error: {e}")
-
 
 
 if __name__ == "__main__":

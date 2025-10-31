@@ -2,6 +2,7 @@ import pandas as pd
 
 # Report Assembly
 
+
 def assemble_report(sections: list[list[str | int]]) -> pd.DataFrame:
     """
     Flatten a list of 3-column blocks into one DataFrame, inserting a blank spacer row

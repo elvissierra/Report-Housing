@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 """
@@ -27,6 +26,7 @@ PATTERN = re.compile(
     re.IGNORECASE | re.VERBOSE,
 )
 
+
 def extract_parts(text: str) -> pd.Series:
     """Return a Series(existing, proposed, index, is_meaningful_str) parsed from one cell."""
     cols = ["existing", "proposed", "index", "is_meaningful_str"]
@@ -38,20 +38,23 @@ def extract_parts(text: str) -> pd.Series:
     gd = m.groupdict()
     return pd.Series(
         [
-            gd["existing"].strip(),         # e.g., "F 1541 Merivale Rd , …"
-            gd["proposed"].strip(),         # e.g., "D 1541 Ch Merivale , …"
+            gd["existing"].strip(),  # e.g., "F 1541 Merivale Rd , …"
+            gd["proposed"].strip(),  # e.g., "D 1541 Ch Merivale , …"
             int(gd["index"]),
-            gd["is_meaningful"].strip(),    # literal tail, e.g., "is meaningful true"
+            gd["is_meaningful"].strip(),  # literal tail, e.g., "is meaningful true"
         ],
         index=cols,
     )
+
 
 def split_diff_updated(df: pd.DataFrame) -> pd.DataFrame:
     """Vectorize `extract_parts` over the 'diff_updated' column and join back to the DataFrame."""
     parts = df["diff_updated"].apply(extract_parts)
     return pd.concat([df, parts], axis=1)
 
+
 # --- CLI runner ---
+
 
 def main() -> None:
     """CLI wrapper: read input CSV, parse 'diff_updated', and write four clean columns."""
@@ -103,7 +106,11 @@ def main() -> None:
 
     # Simple summary to stdout
     total = len(df)
-    parsed_ok = parsed["existing"].notna() & parsed["proposed"].notna() & parsed["index"].notna()
+    parsed_ok = (
+        parsed["existing"].notna()
+        & parsed["proposed"].notna()
+        & parsed["index"].notna()
+    )
     print(
         f"Wrote {out_path} — {parsed_ok.sum()} / {total} rows parsed successfully.\n"
         f"Columns: {', '.join(cols)}"

@@ -10,6 +10,7 @@ from typing import Optional, List, Dict
 def _ensure_series(obj: pd.Series | pd.DataFrame) -> pd.Series:
     return obj.iloc[:, 0] if isinstance(obj, pd.DataFrame) else obj
 
+
 # Data Manipulation
 
 """
@@ -42,7 +43,9 @@ To clean any marking from a string, this is to only output character
 """
 
 
-def generate_column_report(report_df: pd.DataFrame, config_df: pd.DataFrame) -> list[list[str | int]]:
+def generate_column_report(
+    report_df: pd.DataFrame, config_df: pd.DataFrame
+) -> list[list[str | int]]:
     """
     Build the long-form report sections according to the declarative `config_df`.
 
@@ -124,7 +127,9 @@ def generate_column_report(report_df: pd.DataFrame, config_df: pd.DataFrame) -> 
             counts = s.value_counts()
             duplicate = counts[counts > 1]
             section = [[hdr, "Duplicates", "Instances"]]
-            for value, cnt in sorted(duplicate.items(), key=lambda x: (-int(x[1]), str(x[0]))):
+            for value, cnt in sorted(
+                duplicate.items(), key=lambda x: (-int(x[1]), str(x[0]))
+            ):
                 section.append(["", value, int(cnt)])
             sections.append(section)
             continue
@@ -152,14 +157,21 @@ def generate_column_report(report_df: pd.DataFrame, config_df: pd.DataFrame) -> 
                 # Delimiter logic for separate_nodes
                 if r["separate_nodes"]:
                     # Split nested lists by delimiter, explode into rows, and normalize for counting
-                    delim = r["delimiter"] if pd.notna(r["delimiter"]) and str(r["delimiter"]).strip() != "" else None
+                    delim = (
+                        r["delimiter"]
+                        if pd.notna(r["delimiter"])
+                        and str(r["delimiter"]).strip() != ""
+                        else None
+                    )
                     if delim:
                         items = (
-                            series.str.split(rf"\s*{re.escape(str(delim))}\s*", regex=True)
-                                  .explode()
-                                  .dropna()
-                                  .str.strip()
-                                  .str.lower()
+                            series.str.split(
+                                rf"\s*{re.escape(str(delim))}\s*", regex=True
+                            )
+                            .explode()
+                            .dropna()
+                            .str.strip()
+                            .str.lower()
                             # .apply(clean_list_string) | Not applying cleaning here, as below
                         )
                     else:
@@ -167,7 +179,12 @@ def generate_column_report(report_df: pd.DataFrame, config_df: pd.DataFrame) -> 
                         items = series.fillna("").astype(str).str.strip().str.lower()
                     cnt = int((items == str(r["value"]).strip().lower()).sum())
                 else:
-                    delim = r["delimiter"] if pd.notna(r["delimiter"]) and str(r["delimiter"]).strip() != "" else None
+                    delim = (
+                        r["delimiter"]
+                        if pd.notna(r["delimiter"])
+                        and str(r["delimiter"]).strip() != ""
+                        else None
+                    )
                     if r["root_only"] and delim:
                         series = series.str.split(re.escape(str(delim)), expand=True)[0]
                     series = _ensure_series(series)
@@ -175,10 +192,17 @@ def generate_column_report(report_df: pd.DataFrame, config_df: pd.DataFrame) -> 
                         d = re.escape(str(delim))
                         v = re.escape(str(r["value"]).strip().lower())
                         pattern = rf"(?:^|{d})\s*{v}\s*(?:{d}|$)"
-                        cnt = int(series.str.lower().str.contains(pattern, regex=True).sum())
+                        cnt = int(
+                            series.str.lower().str.contains(pattern, regex=True).sum()
+                        )
                     else:
                         # Without a delimiter, perform normalized equality on the whole field
-                        cnt = int(series.str.strip().str.lower().eq(str(r["value"]).strip().lower()).sum())
+                        cnt = int(
+                            series.str.strip()
+                            .str.lower()
+                            .eq(str(r["value"]).strip().lower())
+                            .sum()
+                        )
                 label = r["value"] or "None"
                 label_counts[label] = cnt
         else:
@@ -186,14 +210,21 @@ def generate_column_report(report_df: pd.DataFrame, config_df: pd.DataFrame) -> 
                 series = report_df[col_name].fillna("").astype(str)
                 if r["separate_nodes"]:
                     # Split nested lists by delimiter, explode into rows, and normalize for counting
-                    delim = r["delimiter"] if pd.notna(r["delimiter"]) and str(r["delimiter"]).strip() != "" else None
+                    delim = (
+                        r["delimiter"]
+                        if pd.notna(r["delimiter"])
+                        and str(r["delimiter"]).strip() != ""
+                        else None
+                    )
                     if delim:
                         items = (
-                            series.str.split(rf"\s*{re.escape(str(delim))}\s*", regex=True)
-                                  .explode()
-                                  .dropna()
-                                  .str.strip()
-                                  .str.lower()
+                            series.str.split(
+                                rf"\s*{re.escape(str(delim))}\s*", regex=True
+                            )
+                            .explode()
+                            .dropna()
+                            .str.strip()
+                            .str.lower()
                         )
                     else:
                         items = series.fillna("").astype(str).str.strip().str.lower()
@@ -202,7 +233,12 @@ def generate_column_report(report_df: pd.DataFrame, config_df: pd.DataFrame) -> 
                         label_counts[label] = label_counts.get(label, 0) + 1
                 elif r["aggregate"]:
                     # Fast-path behavior toggles controlled entirely by config flags
-                    delim = r["delimiter"] if pd.notna(r["delimiter"]) and str(r["delimiter"]).strip() != "" else None
+                    delim = (
+                        r["delimiter"]
+                        if pd.notna(r["delimiter"])
+                        and str(r["delimiter"]).strip() != ""
+                        else None
+                    )
                     if r["root_only"] and delim:
                         series = series.str.split(re.escape(str(delim)), expand=True)[0]
                     series = _ensure_series(series)
@@ -213,7 +249,12 @@ def generate_column_report(report_df: pd.DataFrame, config_df: pd.DataFrame) -> 
                         cnt = int((s == val).sum())
                         label_counts[val] = cnt
                 else:
-                    delim = r["delimiter"] if pd.notna(r["delimiter"]) and str(r["delimiter"]).strip() != "" else None
+                    delim = (
+                        r["delimiter"]
+                        if pd.notna(r["delimiter"])
+                        and str(r["delimiter"]).strip() != ""
+                        else None
+                    )
                     if r["root_only"] and delim:
                         series = series.str.split(re.escape(str(delim)), expand=True)[0]
                     series = _ensure_series(series)
@@ -221,22 +262,33 @@ def generate_column_report(report_df: pd.DataFrame, config_df: pd.DataFrame) -> 
                         d = re.escape(str(delim))
                         v = re.escape(str(r["value"]).strip().lower())
                         pattern = rf"(?:^|{d})\s*{v}\s*(?:{d}|$)"
-                        cnt = int(series.str.lower().str.contains(pattern, regex=True).sum())
+                        cnt = int(
+                            series.str.lower().str.contains(pattern, regex=True).sum()
+                        )
                     else:
-                        cnt = int(series.str.strip().str.lower().eq(str(r["value"]).strip().lower()).sum())
+                        cnt = int(
+                            series.str.strip()
+                            .str.lower()
+                            .eq(str(r["value"]).strip().lower())
+                            .sum()
+                        )
                     label = r["value"] or "None"
                     label_counts[label] = label_counts.get(label, 0) + cnt
 
         # Emit a three-column section with percentage of total rows and absolute count
         section = [[hdr, "%", "Count"]]
-        for label, cnt in sorted(label_counts.items(), key=lambda x: (-x[1], str(x[0]))):
+        for label, cnt in sorted(
+            label_counts.items(), key=lambda x: (-x[1], str(x[0]))
+        ):
             pct = round(cnt / total_rows * 100, 2) if total_rows else 0
             section.append([label, f"{pct:.2f}%", cnt])
         sections.append(section)
 
     return sections
 
+
 # ===== Insights / Correlations =====
+
 
 def is_categorical_column(series: pd.Series, max_unique_values: int = 20) -> bool:
     """Heuristic: treat as categorical if dtype=object or unique count is small."""
@@ -432,6 +484,7 @@ def _parse_insights_from_config(config_df: pd.DataFrame) -> Dict[str, object]:
       - 'INSIGHTS TARGETS'   → VALUE contains pipe-separated column names
       - 'INSIGHTS THRESHOLD' → VALUE contains a float (e.g., 0.3)
     """
+
     def _norm_key_name(s: str) -> str:
         s = str(s or "").strip().lower()
         s = re.sub(r"[^a-z0-9]+", " ", s)
@@ -496,7 +549,9 @@ def run_basic_insights(
     """
     directives = _parse_insights_from_config(config_df)
 
-    eff_threshold = threshold if threshold is not None else directives.get("threshold", 0.2)
+    eff_threshold = (
+        threshold if threshold is not None else directives.get("threshold", 0.2)
+    )
 
     def _make_unique(cols: list[str]) -> list[str]:
         seen = {}
@@ -512,7 +567,9 @@ def run_basic_insights(
         return out
 
     if dataframe.columns.duplicated().any():
-        print("[insights] Detected duplicate column names; de-duplicating for analysis.")
+        print(
+            "[insights] Detected duplicate column names; de-duplicating for analysis."
+        )
         df_work = dataframe.copy()
         df_work.columns = _make_unique(df_work.columns)
     else:
