@@ -4,9 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 import pandas as pd, io, zipfile, os, tempfile
 
-from extract import load_csv
-from transform import generate_column_report, run_basic_insights
-from generator import assemble_report, save_report
+from report_auto.extract import load_csv
+from report_auto.transform import generate_column_report, run_basic_insights
+from report_auto.generator import assemble_report, save_report
 
 app = FastAPI()
 

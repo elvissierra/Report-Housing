@@ -1,10 +1,10 @@
-from __future__ import annotations
 
 """
 Utility helpers for string normalization and token handling used across the pipeline.
 Keep these side-effect free so they can be reused in tests and notebooks.
 """
 
+from __future__ import annotations
 import pandas as pd
 import re
 

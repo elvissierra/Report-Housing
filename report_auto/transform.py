@@ -1,10 +1,11 @@
 from __future__ import annotations
 import pandas as pd
 import re
-from utils import clean_list_string
+from report_auto.utils import clean_list_string
 import numpy as np
 import csv
 from typing import Optional, List, Dict
+
 
 
 def _ensure_series(obj: pd.Series | pd.DataFrame) -> pd.Series:
@@ -333,14 +334,14 @@ def compute_correlations_and_crosstabs(
     source_columns: list,
     target_columns: list,
     correlation_threshold: float = 0.2,
-    crosstabs_output_path: str = "csv_files/crosstabs_output.csv",
-    correlations_output_path: str = "csv_files/correlation_results.csv",
+    crosstabs_output_path: str = "csv_files/Crosstabs_Output.csv",
+    correlations_output_path: str = "csv_files/Correlation_Results.csv",
     verbose: bool = True,
     include_type: bool = False,
 ) -> pd.DataFrame:
     """
     Compare selected columns and persist two artifacts:
-    - Crosstabs for categorical×categorical pairs (written as CSV sections).
+    - crosstabs for categorical×categorical pairs (written as CSV sections).
     - A sorted CSV of correlations above `correlation_threshold`.
 
     Supports numeric×numeric (Pearson r), categorical×categorical (Cramér's V),
@@ -469,8 +470,8 @@ def compute_correlations_and_crosstabs(
     )
     results_df.to_csv(correlations_output_path, index=False)
 
-    print(f"✅ Correlation results → {correlations_output_path}")
-    print(f"✅ Crosstabs written → {crosstabs_output_path}")
+    print(f"✅ Correlation Results → {correlations_output_path}")
+    print(f"✅ Crosstabs Written → {crosstabs_output_path}")
 
     return results_df
 
@@ -541,11 +542,11 @@ def run_basic_insights(
     output_dir: str = ".",
 ) -> Optional[pd.DataFrame]:
     """
-    Convenience wrapper to run correlation/crosstab analysis next to the main report.
+    Convenience wrapper to run correlation/crosstabs analysis next to the main report.
 
     - De-duplicates duplicate column names (appending .1, .2…) to avoid collisions.
     - Resolves configured source/target names against normalized headers.
-    - Emits `correlation_results.csv` and `crosstabs_output.csv` into `output_dir`.
+    - Emits `Correlation_Results.csv` and `Crosstabs_Output.csv` into `output_dir`.
     """
     directives = _parse_insights_from_config(config_df)
 
@@ -605,14 +606,14 @@ def run_basic_insights(
         print("[insights] Skipping: unresolved sources/targets after normalization.")
         return None
 
-    crosstab_path = f"{output_dir}/crosstabs_output.csv"
-    correlation_path = f"{output_dir}/correlation_results.csv"
+    crosstabs_path = f"{output_dir}/Crosstabs_Output.csv"
+    correlations_path = f"{output_dir}/Correlation_Results.csv"
 
     return compute_correlations_and_crosstabs(
         df_work,
         sources,
         targets,
         correlation_threshold=eff_threshold,
-        crosstabs_output_path=crosstab_path,
-        correlations_output_path=correlation_path,
+        crosstabs_output_path=crosstabs_path,
+        correlations_output_path=correlations_path,
     )

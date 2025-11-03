@@ -14,9 +14,9 @@ __last_modified__ = "10.30.2025"
 import os
 import argparse
 import pandas as pd
-from extract import load_csv
-from transform import generate_column_report
-from generator import assemble_report, save_report
+from report_auto.extract import load_csv
+from report_auto.transform import generate_column_report
+from report_auto.generator import assemble_report, save_report
 
 # Main Data Reporting Generator
 
@@ -48,7 +48,7 @@ def run_auto_report(
     - This function delegates the transformation to `generate_column_report`,
       the layout/assembly to `assemble_report`, and file persistence to `save_report`.
     - If `transform.run_basic_insights` is available, it will also write two artifacts:
-      `correlation_results.csv` and `crosstabs_output.csv` next to the main output.
+      `correlation_results.csv` and `CrossTabs_output.csv` next to the main output.
     """
     # Handle multi-sheet workbook
     if multi_sheet and input_path.lower().endswith((".xls", ".xlsx")):
@@ -65,7 +65,7 @@ def run_auto_report(
             sheet_output = output_path.replace(".csv", f"_{sheet_name}.csv")
             save_report(final_report, sheet_output)
             try:
-                from transform import run_basic_insights
+                from report_auto.transform import run_basic_insights
 
                 # Insights expect normalized column names; work on a copy to avoid side effects
                 cfg_ins = config_df.copy()
@@ -83,7 +83,7 @@ def run_auto_report(
     final_report = assemble_report(report_blocks)
     save_report(final_report, output_path)
     try:
-        from transform import run_basic_insights
+        from report_auto.transform import run_basic_insights
 
         # If insights utilities are present, compute correlations/crosstabs alongside the report
         cfg_ins = config_df.copy()
