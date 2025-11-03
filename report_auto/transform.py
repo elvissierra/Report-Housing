@@ -11,6 +11,16 @@ from typing import Optional, List, Dict
 def _ensure_series(obj: pd.Series | pd.DataFrame) -> pd.Series:
     return obj.iloc[:, 0] if isinstance(obj, pd.DataFrame) else obj
 
+# Helper to normalize delimiters, treating whitespace as valid, only NaN/empty as None.
+def _normalize_delim(raw) -> Optional[str]:
+    """Return a usable delimiter string. Accept whitespace (e.g., ' ') as valid.
+    Only NaN or empty string are treated as no delimiter (None).
+    """
+    if pd.isna(raw):
+        return None
+    s = str(raw)
+    return None if s == "" else s
+
 
 # Data Manipulation
 
@@ -155,73 +165,52 @@ def generate_column_report(
         if not search_value.empty:
             for _, r in search_value.iterrows():
                 series = report_df[col_name].fillna("").astype(str)
-                # Delimiter logic for separate_nodes
                 if r["separate_nodes"]:
-                    # Split nested lists by delimiter, explode into rows, and normalize for counting
-                    delim = (
-                        r["delimiter"]
-                        if pd.notna(r["delimiter"])
-                        and str(r["delimiter"]).strip() != ""
-                        else None
-                    )
+                    delim = _normalize_delim(r["delimiter"])  
                     if delim:
+                        split_pat = r"\s+" if delim.isspace() else rf"\s*{re.escape(str(delim))}\s*"
                         items = (
-                            series.str.split(
-                                rf"\s*{re.escape(str(delim))}\s*", regex=True
-                            )
+                            series.str.split(split_pat, regex=True)
                             .explode()
                             .dropna()
                             .str.strip()
                             .str.lower()
-                            # .apply(clean_list_string) | Not applying cleaning here, as below
                         )
                     else:
                         # No delimiter provided; treat the entire cell as a single token
                         items = series.fillna("").astype(str).str.strip().str.lower()
                     cnt = int((items == str(r["value"]).strip().lower()).sum())
                 else:
-                    delim = (
-                        r["delimiter"]
-                        if pd.notna(r["delimiter"])
-                        and str(r["delimiter"]).strip() != ""
-                        else None
-                    )
-                    if r["root_only"] and delim:
-                        series = series.str.split(re.escape(str(delim)), expand=True)[0]
-                    series = _ensure_series(series)
-                    if delim:
-                        d = re.escape(str(delim))
-                        v = re.escape(str(r["value"]).strip().lower())
-                        pattern = rf"(?:^|{d})\s*{v}\s*(?:{d}|$)"
-                        cnt = int(
-                            series.str.lower().str.contains(pattern, regex=True).sum()
-                        )
+                    delim = _normalize_delim(r["delimiter"]) 
+                    val_norm = str(r["value"]).strip().lower()
+                    if r["root_only"]:
+                        if delim is not None:
+                            split_pat = r"\s+" if delim.isspace() else rf"\s*{re.escape(delim)}\s*"
+                            first = series.str.split(split_pat, regex=True, expand=True)[0]
+                            cnt = int(first.str.strip().str.lower().eq(val_norm).sum())
+                        else:
+                            # ROOT_ONLY requires a delimiter; fall back to whole-cell equality
+                            cnt = int(series.str.strip().str.lower().eq(val_norm).sum())
                     else:
-                        # Without a delimiter, perform normalized equality on the whole field
-                        cnt = int(
-                            series.str.strip()
-                            .str.lower()
-                            .eq(str(r["value"]).strip().lower())
-                            .sum()
-                        )
-                label = r["value"] or "None"
-                label_counts[label] = cnt
+                        if delim is not None:
+                            d_pat = r"\s+" if delim.isspace() else re.escape(delim)
+                            v = re.escape(val_norm)
+                            pattern = rf"(?:^|{d_pat})\s*{v}\s*(?:{d_pat}|$)"
+                            cnt = int(series.str.lower().str.contains(pattern, regex=True).sum())
+                        else:
+                            # Without a delimiter, perform normalized equality on the whole field
+                            cnt = int(series.str.strip().str.lower().eq(val_norm).sum())
+                    label = r["value"] or "None"
+                    label_counts[label] = cnt
         else:
             for _, r in entries.iterrows():
                 series = report_df[col_name].fillna("").astype(str)
                 if r["separate_nodes"]:
-                    # Split nested lists by delimiter, explode into rows, and normalize for counting
-                    delim = (
-                        r["delimiter"]
-                        if pd.notna(r["delimiter"])
-                        and str(r["delimiter"]).strip() != ""
-                        else None
-                    )
+                    delim = _normalize_delim(r["delimiter"]) 
                     if delim:
+                        split_pat = r"\s+" if delim.isspace() else rf"\s*{re.escape(str(delim))}\s*"
                         items = (
-                            series.str.split(
-                                rf"\s*{re.escape(str(delim))}\s*", regex=True
-                            )
+                            series.str.split(split_pat, regex=True)
                             .explode()
                             .dropna()
                             .str.strip()
@@ -233,15 +222,10 @@ def generate_column_report(
                         label = val or "None"
                         label_counts[label] = label_counts.get(label, 0) + 1
                 elif r["aggregate"]:
-                    # Fast-path behavior toggles controlled entirely by config flags
-                    delim = (
-                        r["delimiter"]
-                        if pd.notna(r["delimiter"])
-                        and str(r["delimiter"]).strip() != ""
-                        else None
-                    )
-                    if r["root_only"] and delim:
-                        series = series.str.split(re.escape(str(delim)), expand=True)[0]
+                    delim = _normalize_delim(r["delimiter"]) 
+                    if r["root_only"] and delim is not None:
+                        split_pat = r"\s+" if delim.isspace() else rf"\s*{re.escape(delim)}\s*"
+                        series = series.str.split(split_pat, regex=True, expand=True)[0]
                     series = _ensure_series(series)
                     s = series.str.strip().str.lower()
                     for val in sorted(s.unique()):
@@ -250,29 +234,25 @@ def generate_column_report(
                         cnt = int((s == val).sum())
                         label_counts[val] = cnt
                 else:
-                    delim = (
-                        r["delimiter"]
-                        if pd.notna(r["delimiter"])
-                        and str(r["delimiter"]).strip() != ""
-                        else None
-                    )
-                    if r["root_only"] and delim:
-                        series = series.str.split(re.escape(str(delim)), expand=True)[0]
-                    series = _ensure_series(series)
-                    if delim:
-                        d = re.escape(str(delim))
-                        v = re.escape(str(r["value"]).strip().lower())
-                        pattern = rf"(?:^|{d})\s*{v}\s*(?:{d}|$)"
-                        cnt = int(
-                            series.str.lower().str.contains(pattern, regex=True).sum()
-                        )
+                    delim = _normalize_delim(r["delimiter"]) 
+                    val_norm = str(r["value"]).strip().lower()
+                    if r["root_only"]:
+                        if delim is not None:
+                            split_pat = r"\s+" if delim.isspace() else rf"\s*{re.escape(delim)}\s*"
+                            first = series.str.split(split_pat, regex=True, expand=True)[0]
+                            cnt = int(first.str.strip().str.lower().eq(val_norm).sum())
+                        else:
+                            # ROOT_ONLY requires a delimiter; fall back to whole-cell equality
+                            cnt = int(series.str.strip().str.lower().eq(val_norm).sum())
                     else:
-                        cnt = int(
-                            series.str.strip()
-                            .str.lower()
-                            .eq(str(r["value"]).strip().lower())
-                            .sum()
-                        )
+                        series = _ensure_series(series)
+                        if delim is not None:
+                            d_pat = r"\s+" if delim.isspace() else re.escape(delim)
+                            v = re.escape(val_norm)
+                            pattern = rf"(?:^|{d_pat})\s*{v}\s*(?:{d_pat}|$)"
+                            cnt = int(series.str.lower().str.contains(pattern, regex=True).sum())
+                        else:
+                            cnt = int(series.str.strip().str.lower().eq(val_norm).sum())
                     label = r["value"] or "None"
                     label_counts[label] = label_counts.get(label, 0) + cnt
 
