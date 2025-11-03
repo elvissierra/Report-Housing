@@ -1,5 +1,5 @@
 """
-Script to output a report based on Quip congfigurations
+Script to output a report based on Quip configurations
 v4: Next step- add visual data
 """
 
@@ -48,7 +48,7 @@ def run_auto_report(
     - This function delegates the transformation to `generate_column_report`,
       the layout/assembly to `assemble_report`, and file persistence to `save_report`.
     - If `transform.run_basic_insights` is available, it will also write two artifacts:
-      `correlation_results.csv` and `CrossTabs_output.csv` next to the main output.
+      `Correlation_Results.csv` and `Crosstabs_Output.csv` next to the main output.
     """
     # Handle multi-sheet workbook
     if multi_sheet and input_path.lower().endswith((".xls", ".xlsx")):
@@ -78,7 +78,12 @@ def run_auto_report(
                 print(f"[insights] Skipped due to error on sheet '{sheet_name}': {e}")
         return
     # Fast path: CSV input or Excel treated as a single sheet
-    df = load_csv(input_path)
+    ext = os.path.splitext(input_path)[1].lower()
+    if ext in (".xls", ".xlsx"):
+        df = pd.read_excel(input_path)
+        df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
+    else:
+        df = load_csv(input_path)
     report_blocks = generate_column_report(df, config_df)
     final_report = assemble_report(report_blocks)
     save_report(final_report, output_path)

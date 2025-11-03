@@ -5,6 +5,7 @@ from report_auto.utils import clean_list_string
 import numpy as np
 import csv
 from typing import Optional, List, Dict
+import os
 
 
 
@@ -20,6 +21,25 @@ def _normalize_delim(raw) -> Optional[str]:
         return None
     s = str(raw)
     return None if s == "" else s
+
+# --- Helpers for duplicate columns and normalization ---
+def _make_unique(cols: list[str]) -> list[str]:
+    """De-duplicate column names by appending .1, .2, ... to later duplicates."""
+    seen: dict[str, int] = {}
+    out: list[str] = []
+    for c in cols:
+        name = str(c)
+        if name in seen:
+            seen[name] += 1
+            out.append(f"{name}.{seen[name]}")
+        else:
+            seen[name] = 0
+            out.append(name)
+    return out
+
+def _norm_base(name: str) -> str:
+    """Strip any trailing .<int> suffix used for de-duplicated columns."""
+    return re.sub(r"\.(?:\d+)$", "", str(name))
 
 
 # Data Manipulation
@@ -77,8 +97,8 @@ def generate_column_report(
     """
     # total tasks used / not calling atm
     total_config = len(config_df)
-    # tatal rows read / replacing total config atm
-    total_rows = len(report_df)
+
+    # Normalize config column names
     cfg = config_df.copy()
     cfg.columns = cfg.columns.str.strip().str.lower().str.replace(" ", "_")
     cfg["column"] = (
@@ -86,14 +106,7 @@ def generate_column_report(
     )
 
     # Normalize boolean-like flags in the config (accept 'yes'/'true', otherwise False)
-    flags = [
-        "aggregate",
-        "root_only",
-        "separate_nodes",
-        "average",
-        "duplicate",
-        "clean",
-    ]
+    flags = ["aggregate", "root_only", "separate_nodes", "average", "duplicate", "clean"]
     for flag in flags:
         if flag in cfg.columns:
             s = cfg[flag].astype(str).str.strip().str.lower()
@@ -106,49 +119,97 @@ def generate_column_report(
     else:
         cfg["value"] = ""
 
-    if "delimiter" in cfg.columns:
-        # Do not set any default; missing/NaN means "no delimiter provided"
-        pass
-    else:
+    if "delimiter" not in cfg.columns:
         cfg["delimiter"] = ""
+
+    # De-duplicate input DataFrame column names (main report path)
+    dedup_groups: dict[str, list[str]] = {}
+    if report_df.columns.duplicated().any():
+        print("[insights] Detected duplicate column names; de-duplicating for analysis.")
+        df_work = report_df.copy()
+        original_cols = list(df_work.columns)
+        seen: dict[str, int] = {}
+        new_cols: list[str] = []
+        for name in original_cols:
+            base = str(name)
+            idx = seen.get(base, 0)
+            new_name = base if idx == 0 else f"{base}.{idx}"
+            seen[base] = idx + 1
+            new_cols.append(new_name)
+            dedup_groups.setdefault(base, []).append(new_name)
+        df_work.columns = new_cols
+    else:
+        df_work = report_df
+
+    # Build lookup from normalized name -> actual column(s)
+    def _norm_key(s: str) -> str:
+        return str(s).strip().lower().replace(" ", "_")
+
+    lut: dict[str, list[str]] = {}
+    # 1) Map deduplicated bases to their generated columns
+    for base, cols in dedup_groups.items():
+        lut.setdefault(_norm_key(base), []).extend(cols)
+    # 2) Map remaining columns by their exact normalized name (not grouped)
+    for c in df_work.columns:
+        if any(c in cols for cols in dedup_groups.values()):
+            continue
+        lut.setdefault(_norm_key(c), []).append(c)
+
+    # Use df_work for row counts
+    total_rows = len(df_work)
+    # one-time warning for ROOT_ONLY without a usable delimiter
+    root_only_warning_emitted = False
+    def _warn_root_only_without_delim(col: str) -> None:
+        nonlocal root_only_warning_emitted
+        if not root_only_warning_emitted:
+            print(f"[config] Warning: ROOT_ONLY is set but DELIMITER is empty for column '{col}'. "
+                  f"Falling back to whole-cell equality.")
+            root_only_warning_emitted = True
 
     sections = []
     sections.append([["Total rows", "", total_rows]])
 
-    for col_name in cfg["column"].unique():
-        if col_name not in report_df.columns:
+    # Iterate per-config-row; each row produces exactly one section
+    for _, r in cfg.iterrows():
+        base_name = r["column"]
+        base_norm = str(base_name).strip().lower().replace(" ", "_")
+        # Resolve a single column to analyze: if user specified suffix (e.g., foo.1), honor it
+        # otherwise pick the first matching column for this base
+        col_name = None
+        # Exact normalized match across df_work
+        for c in df_work.columns:
+            c_norm = str(c).strip().lower().replace(" ", "_")
+            if c_norm == base_norm:
+                col_name = c
+                break
+        if col_name is None:
+            # Nothing to do for this config row
             continue
 
         hdr = col_name.replace("_", " ").upper()
+        series = _ensure_series(df_work[col_name]).fillna("").astype(str)
 
-        is_clean = cfg.loc[cfg["column"] == col_name, "clean"].any()
-        if is_clean:
-            # Fast-path behavior toggles controlled entirely by config flags
+        # Fast-path flags are evaluated per row
+        if r["clean"]:
             clean_section = [[hdr, "", "Cleaned"]]
-            cleaned = report_df[col_name].apply(clean_list_string)
+            cleaned = series.apply(clean_list_string)
             for val in cleaned:
                 clean_section.append(["", "", val])
             sections.append(clean_section)
             continue
 
-        if cfg.loc[cfg["column"] == col_name, "duplicate"].any():
-            # Fast-path behavior toggles controlled entirely by config flags
-            s = report_df[col_name].fillna("").astype(str).str.strip().str.lower()
-            # Normalize values for duplicate detection to avoid case/space noise
+        if r["duplicate"]:
+            s = series.str.strip().str.lower()
             counts = s.value_counts()
             duplicate = counts[counts > 1]
             section = [[hdr, "Duplicates", "Instances"]]
-            for value, cnt in sorted(
-                duplicate.items(), key=lambda x: (-int(x[1]), str(x[0]))
-            ):
+            for value, cnt in sorted(duplicate.items(), key=lambda x: (-int(x[1]), str(x[0]))):
                 section.append(["", value, int(cnt)])
             sections.append(section)
             continue
 
-        if cfg.loc[cfg["column"] == col_name, "average"].any():
-            # Fast-path behavior toggles controlled entirely by config flags
-            raw = report_df[col_name].astype(str).str.strip()
-            # Support numbers with optional '%' suffix; non-numeric entries are coerced to NaN
+        if r["average"]:
+            raw = series.str.strip()
             nums = pd.to_numeric(raw.str.rstrip("%"), errors="coerce")
             if nums.notna().sum() == 0:
                 sections.append([[hdr, "", "Average"], ["No numeric data", "", ""]])
@@ -158,109 +219,81 @@ def generate_column_report(
                 sections.append([[hdr, "", "Average"], ["", "", f"{avg:.2f}{unit}"]])
             continue
 
-        entries = cfg[cfg["column"] == col_name]
-        label_counts = {}
-        search_value = entries[entries["value"] != ""]
+        # General counting paths
+        delim = _normalize_delim(r["delimiter"]) 
+        value = str(r["value"]).strip().lower() if "value" in r else ""
 
-        if not search_value.empty:
-            for _, r in search_value.iterrows():
-                series = report_df[col_name].fillna("").astype(str)
-                if r["separate_nodes"]:
-                    delim = _normalize_delim(r["delimiter"])  
-                    if delim:
-                        split_pat = r"\s+" if delim.isspace() else rf"\s*{re.escape(str(delim))}\s*"
-                        items = (
-                            series.str.split(split_pat, regex=True)
-                            .explode()
-                            .dropna()
-                            .str.strip()
-                            .str.lower()
-                        )
-                    else:
-                        # No delimiter provided; treat the entire cell as a single token
-                        items = series.fillna("").astype(str).str.strip().str.lower()
-                    cnt = int((items == str(r["value"]).strip().lower()).sum())
+        # --- Case A: Targeted VALUE ---
+        if value:
+            if r["separate_nodes"]:
+                if delim:
+                    split_pat = r"\s+" if delim.isspace() else rf"\s*{re.escape(str(delim))}\s*"
+                    items = (
+                        series.str.split(split_pat, regex=True)
+                        .explode()
+                        .dropna()
+                        .str.strip()
+                        .str.lower()
+                    )
                 else:
-                    delim = _normalize_delim(r["delimiter"]) 
-                    val_norm = str(r["value"]).strip().lower()
-                    if r["root_only"]:
-                        if delim is not None:
-                            split_pat = r"\s+" if delim.isspace() else rf"\s*{re.escape(delim)}\s*"
-                            first = series.str.split(split_pat, regex=True, expand=True)[0]
-                            cnt = int(first.str.strip().str.lower().eq(val_norm).sum())
-                        else:
-                            # ROOT_ONLY requires a delimiter; fall back to whole-cell equality
-                            cnt = int(series.str.strip().str.lower().eq(val_norm).sum())
-                    else:
-                        if delim is not None:
-                            d_pat = r"\s+" if delim.isspace() else re.escape(delim)
-                            v = re.escape(val_norm)
-                            pattern = rf"(?:^|{d_pat})\s*{v}\s*(?:{d_pat}|$)"
-                            cnt = int(series.str.lower().str.contains(pattern, regex=True).sum())
-                        else:
-                            # Without a delimiter, perform normalized equality on the whole field
-                            cnt = int(series.str.strip().str.lower().eq(val_norm).sum())
-                    label = r["value"] or "None"
-                    label_counts[label] = cnt
+                    # No delimiter provided; treat the entire cell as a single token
+                    items = series.fillna("").astype(str).str.strip().str.lower()
+                cnt = int((items == value).sum())
+            elif r["root_only"]:
+                if delim is not None:
+                    split_pat = r"\s+" if delim.isspace() else rf"\s*{re.escape(delim)}\s*"
+                    first = series.str.split(split_pat, regex=True, expand=True)[0]
+                    cnt = int(first.str.strip().str.lower().eq(value).sum())
+                else:
+                    _warn_root_only_without_delim(col_name)
+                    cnt = int(series.str.strip().str.lower().eq(value).sum())
+            else:
+                if delim is not None:
+                    d_pat = r"\s+" if delim.isspace() else re.escape(delim)
+                    v = re.escape(value)
+                    pattern = rf"(?:^|{d_pat})\s*{v}\s*(?:{d_pat}|$)"
+                    cnt = int(series.str.lower().str.contains(pattern, regex=True).sum())
+                else:
+                    cnt = int(series.str.strip().str.lower().eq(value).sum())
+
+            section = [[hdr, "%", "Count"]]
+            pct = round(cnt / total_rows * 100, 2) if total_rows else 0
+            section.append([value or "None", f"{pct:.2f}%", cnt])
+            sections.append(section)
+            continue
+
+        # --- Case B: No VALUE → distribution/aggregate ---
+        label_counts: dict[str, int] = {}
+        if r["separate_nodes"]:
+            if delim:
+                split_pat = r"\s+" if delim.isspace() else rf"\s*{re.escape(str(delim))}\s*"
+                items = (
+                    series.str.split(split_pat, regex=True)
+                    .explode()
+                    .dropna()
+                    .str.strip()
+                    .str.lower()
+                )
+            else:
+                items = series.fillna("").astype(str).str.strip().str.lower()
+            for val in items:
+                label = val or "None"
+                label_counts[label] = label_counts.get(label, 0) + 1
         else:
-            for _, r in entries.iterrows():
-                series = report_df[col_name].fillna("").astype(str)
-                if r["separate_nodes"]:
-                    delim = _normalize_delim(r["delimiter"]) 
-                    if delim:
-                        split_pat = r"\s+" if delim.isspace() else rf"\s*{re.escape(str(delim))}\s*"
-                        items = (
-                            series.str.split(split_pat, regex=True)
-                            .explode()
-                            .dropna()
-                            .str.strip()
-                            .str.lower()
-                        )
-                    else:
-                        items = series.fillna("").astype(str).str.strip().str.lower()
-                    for val in items:
-                        label = val or "None"
-                        label_counts[label] = label_counts.get(label, 0) + 1
-                elif r["aggregate"]:
-                    delim = _normalize_delim(r["delimiter"]) 
-                    if r["root_only"] and delim is not None:
-                        split_pat = r"\s+" if delim.isspace() else rf"\s*{re.escape(delim)}\s*"
-                        series = series.str.split(split_pat, regex=True, expand=True)[0]
-                    series = _ensure_series(series)
-                    s = series.str.strip().str.lower()
-                    for val in sorted(s.unique()):
-                        if not val.strip():
-                            continue
-                        cnt = int((s == val).sum())
-                        label_counts[val] = cnt
-                else:
-                    delim = _normalize_delim(r["delimiter"]) 
-                    val_norm = str(r["value"]).strip().lower()
-                    if r["root_only"]:
-                        if delim is not None:
-                            split_pat = r"\s+" if delim.isspace() else rf"\s*{re.escape(delim)}\s*"
-                            first = series.str.split(split_pat, regex=True, expand=True)[0]
-                            cnt = int(first.str.strip().str.lower().eq(val_norm).sum())
-                        else:
-                            # ROOT_ONLY requires a delimiter; fall back to whole-cell equality
-                            cnt = int(series.str.strip().str.lower().eq(val_norm).sum())
-                    else:
-                        series = _ensure_series(series)
-                        if delim is not None:
-                            d_pat = r"\s+" if delim.isspace() else re.escape(delim)
-                            v = re.escape(val_norm)
-                            pattern = rf"(?:^|{d_pat})\s*{v}\s*(?:{d_pat}|$)"
-                            cnt = int(series.str.lower().str.contains(pattern, regex=True).sum())
-                        else:
-                            cnt = int(series.str.strip().str.lower().eq(val_norm).sum())
-                    label = r["value"] or "None"
-                    label_counts[label] = label_counts.get(label, 0) + cnt
+            if r["root_only"] and delim is not None:
+                split_pat = r"\s+" if delim.isspace() else rf"\s*{re.escape(delim)}\s*"
+                series = series.str.split(split_pat, regex=True, expand=True)[0]
+            elif r["root_only"] and delim is None:
+                _warn_root_only_without_delim(col_name)
+            s = series.str.strip().str.lower()
+            for val in sorted(s.unique()):
+                if not val.strip():
+                    continue
+                cnt = int((s == val).sum())
+                label_counts[val] = cnt
 
-        # Emit a three-column section with percentage of total rows and absolute count
         section = [[hdr, "%", "Count"]]
-        for label, cnt in sorted(
-            label_counts.items(), key=lambda x: (-x[1], str(x[0]))
-        ):
+        for label, cnt in sorted(label_counts.items(), key=lambda x: (-x[1], str(x[0]))):
             pct = round(cnt / total_rows * 100, 2) if total_rows else 0
             section.append([label, f"{pct:.2f}%", cnt])
         sections.append(section)
@@ -342,6 +375,11 @@ def compute_correlations_and_crosstabs(
         if missing_targets:
             print(f"[insights] Skipping missing target columns: {missing_targets}")
 
+    # Ensure output directories exist for both artifacts
+    for _path in (crosstabs_output_path, correlations_output_path):
+        _dir = os.path.dirname(_path)
+        if _dir:
+            os.makedirs(_dir, exist_ok=True)
     with open(crosstabs_output_path, mode="w", newline="", encoding="utf-8") as fh:
         writer = csv.writer(fh)
 
