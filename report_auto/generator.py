@@ -1,6 +1,8 @@
-import pandas as pd
+"""
+Report Assembly
+"""
 
-# Report Assembly
+import pandas as pd
 
 
 def assemble_report(sections: list[list[str | int]]) -> pd.DataFrame:
@@ -15,6 +17,8 @@ def assemble_report(sections: list[list[str | int]]) -> pd.DataFrame:
 
 
 def save_report(df: pd.DataFrame, output_path: str) -> None:
-    """Persist the assembled report to CSV without headers or index; print a success tick."""
+    """
+    Persist the assembled report to CSV without headers or index; print a success tick.
+    """
     df.to_csv(output_path, index=False, header=False)
     print(f"✅ Report saved to {output_path}")

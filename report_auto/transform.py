@@ -1,34 +1,6 @@
-from __future__ import annotations
-import pandas as pd
-import re
-from report_auto.utils import clean_list_string
-import numpy as np
-import csv
-from typing import Optional, List, Dict
-import os
-
-
-def _ensure_series(obj: pd.Series | pd.DataFrame) -> pd.Series:
-    return obj.iloc[:, 0] if isinstance(obj, pd.DataFrame) else obj
-
-
-# Helper to normalize delimiters, treating whitespace as valid, only NaN/empty as None.
-def _normalize_delim(raw) -> Optional[str]:
-    """Return a usable delimiter string. Accept whitespace (e.g., ' ') as valid.
-    Only NaN or empty string are treated as no delimiter (None).
-    """
-    if pd.isna(raw):
-        return None
-    s = str(raw)
-    return None if s == "" else s
-
-
-# --- Helpers for duplicate columns and normalization ---
-
-
-# Data Manipulation
-
 """
+Data Manipulation
+
 COLUMN
 Is the column in the report to be manipulated.
 -------------------------------------
@@ -58,6 +30,49 @@ To clean any marking from a string, this is to only output character
 """
 
 
+from __future__ import annotations
+from report_auto.utils import clean_list_string
+from typing import Optional, List, Dict
+import pandas as pd
+import numpy as np
+import csv
+import re
+import os
+
+
+def _ensure_series(obj: pd.Series | pd.DataFrame) -> pd.Series:
+    return obj.iloc[:, 0] if isinstance(obj, pd.DataFrame) else obj
+
+
+# Helper to normalize delimiters, treating whitespace as valid, only nan/empty as none
+def _normalize_delim(raw) -> Optional[str]:
+    """Return a usable delimiter string. Accept whitespace (' ') as valid.
+    Only nan or empty string are treated as no delimiter none.
+    """
+    if pd.isna(raw):
+        return None
+    s = str(raw)
+    return None if s == "" else s
+
+
+# --- Helpers for duplicate columns and normalization ---
+
+
+# --- Custom sort key helpers for report column sorting ---
+def _sort_dupe_items_key(item: tuple[object, int]) -> tuple[int, str]:
+    """Sort by count desc, then value asc as string."""
+    value, cnt = item
+    return (-int(cnt), str(value))
+
+
+def _sort_label_items_key(item: tuple[str, int]) -> tuple[int, str]:
+    """Sort by count desc, then label asc."""
+    label, cnt = item
+    return (-int(cnt), str(label))
+
+
+
+
 def generate_column_report(
     report_df: pd.DataFrame, config_df: pd.DataFrame
 ) -> list[list[str | int]]:
@@ -69,7 +84,7 @@ def generate_column_report(
     2) For each referenced column in the data:
        - If `clean` is set: emit a cleaned listing of values (one per row).
        - If `duplicate` is set: count normalized duplicates and list counts.
-       - If `average` is set: compute numeric mean (preserving % suffix if present).
+       - If `average` is set: compute numeric mean.
        - Else: compute distribution or targeted counts, optionally splitting by delimiter,
          root_only extraction, or matching an explicit `value`.
     3) Each section is appended to the combined output with a blank spacer row.
@@ -114,9 +129,6 @@ def generate_column_report(
     # De-duplicate input DataFrame column names (main report path)
     dedup_groups: dict[str, list[str]] = {}
     if report_df.columns.duplicated().any():
-        print(
-            "[insights] Detected duplicate column names; de-duplicating for analysis."
-        )
         df_work = report_df.copy()
         original_cols = list(df_work.columns)
         seen: dict[str, int] = {}
@@ -148,7 +160,6 @@ def generate_column_report(
 
     # Use df_work for row counts
     total_rows = len(df_work)
-    # one-time warning for ROOT_ONLY without a usable delimiter
     root_only_warning_emitted = False
 
     def _warn_root_only_without_delim(col: str) -> None:
@@ -167,8 +178,7 @@ def generate_column_report(
     for _, r in cfg.iterrows():
         base_name = r["column"]
         base_norm = str(base_name).strip().lower().replace(" ", "_")
-        # Resolve a single column to analyze: if user specified suffix (e.g., foo.1), honor it
-        # otherwise pick the first matching column for this base
+        # Resolve a single column to analyze: if user specified suffix (e.g., foo.1)
         col_name = None
         # Exact normalized match across df_work
         for c in df_work.columns:
@@ -183,7 +193,6 @@ def generate_column_report(
         hdr = col_name.replace("_", " ").upper()
         series = _ensure_series(df_work[col_name]).fillna("").astype(str)
 
-        # Fast-path flags are evaluated per row
         if r["clean"]:
             clean_section = [[hdr, "", "Cleaned"]]
             cleaned = series.apply(clean_list_string)
@@ -197,9 +206,7 @@ def generate_column_report(
             counts = s.value_counts()
             duplicate = counts[counts > 1]
             section = [[hdr, "Duplicates", "Instances"]]
-            for value, cnt in sorted(
-                duplicate.items(), key=lambda x: (-int(x[1]), str(x[0]))
-            ):
+            for value, cnt in sorted(duplicate.items(), key=_sort_dupe_items_key):
                 section.append(["", value, int(cnt)])
             sections.append(section)
             continue
@@ -309,9 +316,7 @@ def generate_column_report(
 
         section = [[hdr, "%", "Count"]]
         denom = int(sum(label_counts.values()))
-        for label, cnt in sorted(
-            label_counts.items(), key=lambda x: (-x[1], str(x[0]))
-        ):
+        for label, cnt in sorted(label_counts.items(), key=_sort_label_items_key):
             pct = round((cnt / denom) * 100) if denom else 0
             section.append([label, f"{pct}%", cnt])
         sections.append(section)
@@ -323,7 +328,9 @@ def generate_column_report(
 
 
 def is_categorical_column(series: pd.Series, max_unique_values: int = 20) -> bool:
-    """Heuristic: treat as categorical if dtype=object or unique count is small."""
+    """
+    Heuristic: treat as categorical if dtype=object or unique count is small.
+    """
     try:
         unique_count = series.nunique(dropna=True)
     except Exception:
@@ -332,7 +339,9 @@ def is_categorical_column(series: pd.Series, max_unique_values: int = 20) -> boo
 
 
 def cramers_v_stat(col_a: pd.Series, col_b: pd.Series) -> float:
-    """Compute Cramér's V association for two categorical variables with bias correction."""
+    """
+    Compute Cramér's V association for two categorical variables with bias correction.
+    """
     contingency_table = pd.crosstab(col_a, col_b)
     if contingency_table.shape[0] < 2 or contingency_table.shape[1] < 2:
         return np.nan
@@ -393,7 +402,7 @@ def compute_correlations_and_crosstabs(
         if missing_targets:
             print(f"[insights] Skipping missing target columns: {missing_targets}")
 
-    # Ensure output directories exist for both artifacts
+    # Ensure output directories exist
     for _path in (crosstabs_output_path, correlations_output_path):
         _dir = os.path.dirname(_path)
         if _dir:
@@ -514,7 +523,7 @@ def compute_correlations_and_crosstabs(
 
 def _parse_insights_from_config(config_df: pd.DataFrame) -> Dict[str, object]:
     """
-    Extract insights directives from the report config.
+    Extract insights directives from report config.
 
     Recognized keys (case-insensitive in the COLUMN field):
       - 'INSIGHTS SOURCES'   → VALUE contains pipe-separated column names

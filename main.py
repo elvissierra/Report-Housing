@@ -1,6 +1,24 @@
 """
 Script to output a report based on Quip configurations
-v4: Next step- add visual data
+v4.5: Next step- add visual data
+
+Orchestrate the end-to-end report build.
+Parameters
+----------
+input_path : str
+    Path to the raw data file. Supports CSV and, when `multi_sheet=True`, Excel.
+config_df : pd.DataFrame
+    Normalized configuration table (rows after the first two INPUT/OUTPUT rows).
+    Column names are expected to be lower_snake_case (the caller normalizes this).
+output_path : str
+    Destination CSV for the assembled report.
+multi_sheet : bool
+    If True and `input_path` is an Excel workbook, process every sheet and emit
+    one report per sheet (suffixing the sheet name).
+Notes
+-----
+- If `transform.run_basic_insights` is available, it will also write two artifacts:
+  `Correlation_Results.csv` and `Crosstabs_Output.csv` next to the main output.
 """
 
 __author__ = "Elvis Sierra"
@@ -8,7 +26,7 @@ __email__ = "elvis_sierra@apple.com"
 __version__ = "4.5"
 __status__ = "dev"
 __date_created__ = "6.11.2025"
-__last_modified__ = "10.30.2025"
+__last_modified__ = "11.4.2025"
 
 
 import os
@@ -18,8 +36,6 @@ from report_auto.extract import load_csv
 from report_auto.transform import generate_column_report
 from report_auto.generator import assemble_report, save_report
 
-# Main Data Reporting Generator
-
 
 def run_auto_report(
     input_path: str,
@@ -27,29 +43,6 @@ def run_auto_report(
     output_path: str,
     multi_sheet: bool = False,
 ) -> None:
-    """
-    Orchestrate the end-to-end report build.
-
-    Parameters
-    ----------
-    input_path : str
-        Path to the raw data file. Supports CSV and, when `multi_sheet=True`, Excel.
-    config_df : pd.DataFrame
-        Normalized configuration table (rows after the first two INPUT/OUTPUT rows).
-        Column names are expected to be lower_snake_case (the caller normalizes this).
-    output_path : str
-        Destination CSV for the assembled report.
-    multi_sheet : bool
-        If True and `input_path` is an Excel workbook, process every sheet and emit
-        one report per sheet (suffixing the sheet name).
-
-    Notes
-    -----
-    - This function delegates the transformation to `generate_column_report`,
-      the layout/assembly to `assemble_report`, and file persistence to `save_report`.
-    - If `transform.run_basic_insights` is available, it will also write two artifacts:
-      `Correlation_Results.csv` and `Crosstabs_Output.csv` next to the main output.
-    """
     # Handle multi-sheet workbook
     if multi_sheet and input_path.lower().endswith((".xls", ".xlsx")):
         # Read all worksheets into a dict of {sheet_name: DataFrame}
@@ -102,7 +95,7 @@ def run_auto_report(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Auto Report Generator")
     # CLI entrypoint: the first two rows of the config CSV hold INPUT/OUTPUT paths;
-    # the remaining rows are the declarative report instructions consumed by `transform`.
+    # the remaining rows are the declarative report instructions consumed by the transform module.
     parser.add_argument(
         "--config-path",
         required=True,
