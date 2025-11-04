@@ -1,8 +1,12 @@
 # app.py
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, JSONResponse
-import pandas as pd, io, zipfile, os, tempfile
+from fastapi.responses import StreamingResponse
+import pandas as pd
+import io
+import zipfile
+import os
+import tempfile
 
 from report_auto.extract import load_csv
 from report_auto.transform import generate_column_report, run_basic_insights

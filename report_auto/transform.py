@@ -8,9 +8,9 @@ from typing import Optional, List, Dict
 import os
 
 
-
 def _ensure_series(obj: pd.Series | pd.DataFrame) -> pd.Series:
     return obj.iloc[:, 0] if isinstance(obj, pd.DataFrame) else obj
+
 
 # Helper to normalize delimiters, treating whitespace as valid, only NaN/empty as None.
 def _normalize_delim(raw) -> Optional[str]:
@@ -22,24 +22,8 @@ def _normalize_delim(raw) -> Optional[str]:
     s = str(raw)
     return None if s == "" else s
 
-# --- Helpers for duplicate columns and normalization ---
-def _make_unique(cols: list[str]) -> list[str]:
-    """De-duplicate column names by appending .1, .2, ... to later duplicates."""
-    seen: dict[str, int] = {}
-    out: list[str] = []
-    for c in cols:
-        name = str(c)
-        if name in seen:
-            seen[name] += 1
-            out.append(f"{name}.{seen[name]}")
-        else:
-            seen[name] = 0
-            out.append(name)
-    return out
 
-def _norm_base(name: str) -> str:
-    """Strip any trailing .<int> suffix used for de-duplicated columns."""
-    return re.sub(r"\.(?:\d+)$", "", str(name))
+# --- Helpers for duplicate columns and normalization ---
 
 
 # Data Manipulation
@@ -95,8 +79,6 @@ def generate_column_report(
     list[list[str|int]]
         A list of "blocks", each block being a 3-column section ready for assembly.
     """
-    # total tasks used / not calling atm
-    total_config = len(config_df)
 
     # Normalize config column names
     cfg = config_df.copy()
@@ -106,7 +88,14 @@ def generate_column_report(
     )
 
     # Normalize boolean-like flags in the config (accept 'yes'/'true', otherwise False)
-    flags = ["aggregate", "root_only", "separate_nodes", "average", "duplicate", "clean"]
+    flags = [
+        "aggregate",
+        "root_only",
+        "separate_nodes",
+        "average",
+        "duplicate",
+        "clean",
+    ]
     for flag in flags:
         if flag in cfg.columns:
             s = cfg[flag].astype(str).str.strip().str.lower()
@@ -125,7 +114,9 @@ def generate_column_report(
     # De-duplicate input DataFrame column names (main report path)
     dedup_groups: dict[str, list[str]] = {}
     if report_df.columns.duplicated().any():
-        print("[insights] Detected duplicate column names; de-duplicating for analysis.")
+        print(
+            "[insights] Detected duplicate column names; de-duplicating for analysis."
+        )
         df_work = report_df.copy()
         original_cols = list(df_work.columns)
         seen: dict[str, int] = {}
@@ -159,11 +150,14 @@ def generate_column_report(
     total_rows = len(df_work)
     # one-time warning for ROOT_ONLY without a usable delimiter
     root_only_warning_emitted = False
+
     def _warn_root_only_without_delim(col: str) -> None:
         nonlocal root_only_warning_emitted
         if not root_only_warning_emitted:
-            print(f"[config] Warning: ROOT_ONLY is set but DELIMITER is empty for column '{col}'. "
-                  f"Falling back to whole-cell equality.")
+            print(
+                f"[config] Warning: ROOT_ONLY is set but DELIMITER is empty for column '{col}'. "
+                f"Falling back to whole-cell equality."
+            )
             root_only_warning_emitted = True
 
     sections = []
@@ -203,7 +197,9 @@ def generate_column_report(
             counts = s.value_counts()
             duplicate = counts[counts > 1]
             section = [[hdr, "Duplicates", "Instances"]]
-            for value, cnt in sorted(duplicate.items(), key=lambda x: (-int(x[1]), str(x[0]))):
+            for value, cnt in sorted(
+                duplicate.items(), key=lambda x: (-int(x[1]), str(x[0]))
+            ):
                 section.append(["", value, int(cnt)])
             sections.append(section)
             continue
@@ -220,14 +216,16 @@ def generate_column_report(
             continue
 
         # General counting paths
-        delim = _normalize_delim(r["delimiter"]) 
+        delim = _normalize_delim(r["delimiter"])
         value = str(r["value"]).strip().lower() if "value" in r else ""
 
         # --- Case A: Targeted VALUE ---
         if value:
             if r["separate_nodes"]:
                 if delim:
-                    split_pat = r"\s+" if delim.isspace() else rf"\s*{re.escape(str(delim))}\s*"
+                    split_pat = (
+                        r"\s+" if delim.isspace() else rf"\s*{re.escape(str(delim))}\s*"
+                    )
                     items = (
                         series.str.split(split_pat, regex=True)
                         .explode()
@@ -241,7 +239,9 @@ def generate_column_report(
                 cnt = int((items == value).sum())
             elif r["root_only"]:
                 if delim is not None:
-                    split_pat = r"\s+" if delim.isspace() else rf"\s*{re.escape(delim)}\s*"
+                    split_pat = (
+                        r"\s+" if delim.isspace() else rf"\s*{re.escape(delim)}\s*"
+                    )
                     first = series.str.split(split_pat, regex=True, expand=True)[0]
                     cnt = int(first.str.strip().str.lower().eq(value).sum())
                 else:
@@ -252,13 +252,26 @@ def generate_column_report(
                     d_pat = r"\s+" if delim.isspace() else re.escape(delim)
                     v = re.escape(value)
                     pattern = rf"(?:^|{d_pat})\s*{v}\s*(?:{d_pat}|$)"
-                    cnt = int(series.str.lower().str.contains(pattern, regex=True).sum())
+                    cnt = int(
+                        series.str.lower().str.contains(pattern, regex=True).sum()
+                    )
                 else:
                     cnt = int(series.str.strip().str.lower().eq(value).sum())
 
             section = [[hdr, "%", "Count"]]
-            pct = round(cnt / total_rows * 100, 2) if total_rows else 0
-            section.append([value or "None", f"{pct:.2f}%", cnt])
+            # Choose denominator based on path
+            if r["separate_nodes"]:
+                denom = (
+                    int(items.shape[0]) if hasattr(items, "shape") else int(len(items))
+                )
+            elif r["root_only"] and delim is not None:
+                # use the tokenized first piece as the population
+                denom = int(first.str.strip().ne("").sum())
+            else:
+                # default: non-empty rows in this column
+                denom = int(series.str.strip().ne("").sum())
+            pct = round((cnt / denom) * 100) if denom else 0
+            section.append([value or "None", f"{pct}%", cnt])
             sections.append(section)
             continue
 
@@ -266,7 +279,9 @@ def generate_column_report(
         label_counts: dict[str, int] = {}
         if r["separate_nodes"]:
             if delim:
-                split_pat = r"\s+" if delim.isspace() else rf"\s*{re.escape(str(delim))}\s*"
+                split_pat = (
+                    r"\s+" if delim.isspace() else rf"\s*{re.escape(str(delim))}\s*"
+                )
                 items = (
                     series.str.split(split_pat, regex=True)
                     .explode()
@@ -293,9 +308,12 @@ def generate_column_report(
                 label_counts[val] = cnt
 
         section = [[hdr, "%", "Count"]]
-        for label, cnt in sorted(label_counts.items(), key=lambda x: (-x[1], str(x[0]))):
-            pct = round(cnt / total_rows * 100, 2) if total_rows else 0
-            section.append([label, f"{pct:.2f}%", cnt])
+        denom = int(sum(label_counts.values()))
+        for label, cnt in sorted(
+            label_counts.items(), key=lambda x: (-x[1], str(x[0]))
+        ):
+            pct = round((cnt / denom) * 100) if denom else 0
+            section.append([label, f"{pct}%", cnt])
         sections.append(section)
 
     return sections

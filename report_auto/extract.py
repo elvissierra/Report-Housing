@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """
 I/O helpers for reading raw tabular data.
 
@@ -7,6 +5,7 @@ This module centralizes header normalization (lower_snake_case), whitespace trim
 and empty-string → NaN conversion so downstream transforms can assume consistent inputs.
 """
 
+from __future__ import annotations
 import pandas as pd
 import numpy as np
 
