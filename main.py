@@ -35,6 +35,7 @@ import pandas as pd
 from report_auto.extract import load_csv
 from report_auto.transform import generate_column_report
 from report_auto.generator import assemble_report, save_report
+from report_auto.utils import normalize_headers
 
 
 def run_auto_report(
@@ -49,9 +50,7 @@ def run_auto_report(
         sheets = pd.read_excel(input_path, sheet_name=None)
         for sheet_name, df_sheet in sheets.items():
             # Normalize headers to consistent lower_snake_case to match config driven keys
-            df_sheet.columns = (
-                df_sheet.columns.str.strip().str.lower().str.replace(" ", "_")
-            )
+            df_sheet = normalize_headers(df_sheet)
             report_blocks = generate_column_report(df_sheet, config_df)
             final_report = assemble_report(report_blocks)
             # Emit an output per worksheet by suffixing the sheet name
@@ -61,10 +60,7 @@ def run_auto_report(
                 from report_auto.transform import run_basic_insights
 
                 # Insights expect normalized column names; work on a copy to avoid side effects
-                cfg_ins = config_df.copy()
-                cfg_ins.columns = (
-                    cfg_ins.columns.str.strip().str.lower().str.replace(" ", "_")
-                )
+                cfg_ins = normalize_headers(config_df.copy())
                 out_dir = os.path.dirname(sheet_output) or "."
                 run_basic_insights(df_sheet, config_df=cfg_ins, output_dir=out_dir)
             except Exception as e:
@@ -74,7 +70,7 @@ def run_auto_report(
     ext = os.path.splitext(input_path)[1].lower()
     if ext in (".xls", ".xlsx"):
         df = pd.read_excel(input_path)
-        df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
+        df = normalize_headers(df)
     else:
         df = load_csv(input_path)
     report_blocks = generate_column_report(df, config_df)
@@ -84,17 +80,17 @@ def run_auto_report(
         from report_auto.transform import run_basic_insights
 
         # If insights utilities are present, compute correlations/crosstabs alongside the report
-        cfg_ins = config_df.copy()
-        cfg_ins.columns = cfg_ins.columns.str.strip().str.lower().str.replace(" ", "_")
+        cfg_ins = normalize_headers(config_df.copy())
         out_dir = os.path.dirname(output_path) or "."
         run_basic_insights(df, config_df=cfg_ins, output_dir=out_dir)
     except Exception as e:
         print(f"[insights] Skipped due to error: {e}")
 
+    # CLI entrypoint: the first two rows of the config CSV hold INPUT/OUTPUT paths;
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Auto Report Generator")
-    # CLI entrypoint: the first two rows of the config CSV hold INPUT/OUTPUT paths;
     # the remaining rows are the declarative report instructions consumed by the transform module.
     parser.add_argument(
         "--config-path",

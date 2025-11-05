@@ -9,13 +9,7 @@ and empty-string → nan conversion so downstream transforms can assume consiste
 from __future__ import annotations
 import pandas as pd
 import numpy as np
-
-
-def _strip_if_str(x: object) -> object:
-    """
-    Strip whitespace from strings; pass non-strings unchanged.
-    """
-    return x.strip() if isinstance(x, str) else x
+from report_auto.utils import clean_string, normalize_headers
 
 
 def load_csv(path: str) -> pd.DataFrame:
@@ -23,10 +17,10 @@ def load_csv(path: str) -> pd.DataFrame:
     Read a CSV and normalize headers/cell whitespace; return a clean DataFrame.
     """
     df = pd.read_csv(path)
-    df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
+    df = normalize_headers(df)
 
     # Treat blank strings as missing values (nan) for reliable numeric and boolean ops
     df = df.replace(r"^\s*$", np.nan, regex=True)
     # Trim whitespace from all string cells without touching non-strings
-    df = df.applymap(_strip_if_str)
+    df = df.applymap(clean_string)
     return df

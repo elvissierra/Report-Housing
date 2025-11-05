@@ -29,48 +29,23 @@ CLEAN
 To clean any marking from a string, this is to only output character
 """
 
-
 from __future__ import annotations
-from report_auto.utils import clean_list_string
+from report_auto.utils import (
+    clean_list_string,
+    normalize_delim,
+    ensure_series,
+    deduplicate_columns,
+    normalize_name,
+    sort_dupe_items_key,
+    sort_label_items_key,
+    compute_percentages,
+)
 from typing import Optional, List, Dict
 import pandas as pd
 import numpy as np
 import csv
 import re
 import os
-
-
-def _ensure_series(obj: pd.Series | pd.DataFrame) -> pd.Series:
-    return obj.iloc[:, 0] if isinstance(obj, pd.DataFrame) else obj
-
-
-# Helper to normalize delimiters, treating whitespace as valid, only nan/empty as none
-def _normalize_delim(raw) -> Optional[str]:
-    """Return a usable delimiter string. Accept whitespace (' ') as valid.
-    Only nan or empty string are treated as no delimiter none.
-    """
-    if pd.isna(raw):
-        return None
-    s = str(raw)
-    return None if s == "" else s
-
-
-# --- Helpers for duplicate columns and normalization ---
-
-
-# --- Custom sort key helpers for report column sorting ---
-def _sort_dupe_items_key(item: tuple[object, int]) -> tuple[int, str]:
-    """Sort by count desc, then value asc as string."""
-    value, cnt = item
-    return (-int(cnt), str(value))
-
-
-def _sort_label_items_key(item: tuple[str, int]) -> tuple[int, str]:
-    """Sort by count desc, then label asc."""
-    label, cnt = item
-    return (-int(cnt), str(label))
-
-
 
 
 def generate_column_report(
@@ -127,36 +102,18 @@ def generate_column_report(
         cfg["delimiter"] = ""
 
     # De-duplicate input DataFrame column names (main report path)
-    dedup_groups: dict[str, list[str]] = {}
-    if report_df.columns.duplicated().any():
-        df_work = report_df.copy()
-        original_cols = list(df_work.columns)
-        seen: dict[str, int] = {}
-        new_cols: list[str] = []
-        for name in original_cols:
-            base = str(name)
-            idx = seen.get(base, 0)
-            new_name = base if idx == 0 else f"{base}.{idx}"
-            seen[base] = idx + 1
-            new_cols.append(new_name)
-            dedup_groups.setdefault(base, []).append(new_name)
-        df_work.columns = new_cols
-    else:
-        df_work = report_df
+    df_work, dedup_groups = deduplicate_columns(report_df)
 
     # Build lookup from normalized name -> actual column(s)
-    def _norm_key(s: str) -> str:
-        return str(s).strip().lower().replace(" ", "_")
-
     lut: dict[str, list[str]] = {}
     # 1) Map deduplicated bases to their generated columns
     for base, cols in dedup_groups.items():
-        lut.setdefault(_norm_key(base), []).extend(cols)
+        lut.setdefault(normalize_name(base), []).extend(cols)
     # 2) Map remaining columns by their exact normalized name (not grouped)
     for c in df_work.columns:
         if any(c in cols for cols in dedup_groups.values()):
             continue
-        lut.setdefault(_norm_key(c), []).append(c)
+        lut.setdefault(normalize_name(c), []).append(c)
 
     # Use df_work for row counts
     total_rows = len(df_work)
@@ -177,12 +134,12 @@ def generate_column_report(
     # Iterate per-config-row; each row produces exactly one section
     for _, r in cfg.iterrows():
         base_name = r["column"]
-        base_norm = str(base_name).strip().lower().replace(" ", "_")
+        base_norm = normalize_name(base_name)
         # Resolve a single column to analyze: if user specified suffix (e.g., foo.1)
         col_name = None
         # Exact normalized match across df_work
         for c in df_work.columns:
-            c_norm = str(c).strip().lower().replace(" ", "_")
+            c_norm = normalize_name(c)
             if c_norm == base_norm:
                 col_name = c
                 break
@@ -191,7 +148,7 @@ def generate_column_report(
             continue
 
         hdr = col_name.replace("_", " ").upper()
-        series = _ensure_series(df_work[col_name]).fillna("").astype(str)
+        series = ensure_series(df_work[col_name]).fillna("").astype(str)
 
         if r["clean"]:
             clean_section = [[hdr, "", "Cleaned"]]
@@ -206,7 +163,7 @@ def generate_column_report(
             counts = s.value_counts()
             duplicate = counts[counts > 1]
             section = [[hdr, "Duplicates", "Instances"]]
-            for value, cnt in sorted(duplicate.items(), key=_sort_dupe_items_key):
+            for value, cnt in sorted(duplicate.items(), key=sort_dupe_items_key):
                 section.append(["", value, int(cnt)])
             sections.append(section)
             continue
@@ -223,7 +180,7 @@ def generate_column_report(
             continue
 
         # General counting paths
-        delim = _normalize_delim(r["delimiter"])
+        delim = normalize_delim(r["delimiter"])
         value = str(r["value"]).strip().lower() if "value" in r else ""
 
         # --- Case A: Targeted VALUE ---
@@ -277,7 +234,7 @@ def generate_column_report(
             else:
                 # default: non-empty rows in this column
                 denom = int(series.str.strip().ne("").sum())
-            pct = round((cnt / denom) * 100) if denom else 0
+            pct = int(round((cnt / denom) * 100)) if denom else 0
             section.append([value or "None", f"{pct}%", cnt])
             sections.append(section)
             continue
@@ -315,10 +272,9 @@ def generate_column_report(
                 label_counts[val] = cnt
 
         section = [[hdr, "%", "Count"]]
-        denom = int(sum(label_counts.values()))
-        for label, cnt in sorted(label_counts.items(), key=_sort_label_items_key):
-            pct = round((cnt / denom) * 100) if denom else 0
-            section.append([label, f"{pct}%", cnt])
+        pcts = compute_percentages(label_counts)
+        for label, cnt in sorted(label_counts.items(), key=sort_label_items_key):
+            section.append([label, f"{pcts.get(label, 0)}%", cnt])
         sections.append(section)
 
     return sections
