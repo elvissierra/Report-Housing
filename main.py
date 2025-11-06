@@ -30,7 +30,47 @@ __last_modified__ = "11.4.2025"
 
 
 import os
+import sys
+import subprocess
+import venv
 import argparse
+from pathlib import Path
+
+def _ensure_runtime() -> None:
+    """
+    Zero-setup bootstrap: if pandas/numpy are missing, create a local venv,
+    install requirements, and re-exec into that interpreter.
+    """
+    try:
+        import pandas  # noqa: F401
+        import numpy   # noqa: F401
+        return
+    except Exception:
+        pass
+
+    root = Path(__file__).resolve().parent
+    venv_dir = root / ".report_auto_venv"
+    py_bin = venv_dir / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+
+    if not venv_dir.exists():
+        print("⏳ Setting up a local environment (.report_auto_venv)…")
+        venv.EnvBuilder(with_pip=True, clear=False).create(venv_dir)
+
+    # Install minimal deps needed for CSV/Excel processing
+    try:
+        print("⏳ Installing dependencies (pandas, numpy, openpyxl)…")
+        subprocess.check_call([str(py_bin), "-m", "pip", "install", "--upgrade", "pip"])
+        subprocess.check_call([str(py_bin), "-m", "pip", "install", "pandas>=2.0", "numpy>=1.24", "openpyxl>=3.1"])
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Failed to install dependencies: {e}")
+        sys.exit(1)
+
+    # Re-exec this script under the venv's Python, preserving args
+    print("✅ Environment ready. Re-launching…")
+    os.execv(str(py_bin), [str(py_bin), str(Path(__file__).resolve()), *sys.argv[1:]])
+
+_ensure_runtime()
+
 import pandas as pd
 from report_auto.extract import load_csv
 from report_auto.transform import generate_column_report
@@ -94,13 +134,36 @@ if __name__ == "__main__":
     # the remaining rows are the declarative report instructions consumed by the transform module.
     parser.add_argument(
         "--config-path",
-        required=True,
-        help="Path to report_config CSV (first two rows set to be INPUT/OUTPUT)",
+        default=None,
+        help="Path to report_config CSV (first two rows set to be INPUT/OUTPUT). If omitted, a file picker will open.",
     )
     parser.add_argument(
         "--multi-sheet", action="store_true", help="Process all sheets in work book."
     )
+
     args = parser.parse_args()
+
+    # GUI fallback: allow double-click / no-args usage
+    if not args.config_path:
+        try:
+            import tkinter as tk
+            from tkinter import filedialog, messagebox
+            root = tk.Tk()
+            root.withdraw()
+            chosen = filedialog.askopenfilename(
+                title="Select report_config.csv",
+                filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+            )
+            if not chosen:
+                print("No configuration selected. Exiting.")
+                sys.exit(2)
+            args.config_path = chosen
+            gui_selected = True
+        except Exception:
+            print("Please provide --config-path /path/to/report_config.csv")
+            sys.exit(2)
+    else:
+        gui_selected = False
 
     # Load only the first two rows to extract INPUT/OUTPUT without parsing the whole config yet
     raw_cfg = pd.read_csv(args.config_path, header=None, nrows=2)
@@ -121,6 +184,15 @@ if __name__ == "__main__":
         raise ValueError("CONFIG ERROR: 'OUTPUT' label not found in second row")
     # The actual config begins on row 3 (index 2); preserve the header row from the file
     config_df = pd.read_csv(args.config_path, header=0, skiprows=2)
+
+    # If launched via GUI and input is an Excel workbook, offer to process all sheets
+    if gui_selected and str(input_path).lower().endswith((".xls", ".xlsx")) and not args.multi_sheet:
+        try:
+            from tkinter import messagebox
+            if messagebox.askyesno("Process all sheets?", "Detected an Excel workbook. Process ALL sheets?"):
+                args.multi_sheet = True
+        except Exception:
+            pass
 
     run_auto_report(
         input_path,
