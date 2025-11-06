@@ -137,3 +137,20 @@ def clean_list_string(val: object) -> str:
     # Collapse repeated whitespace
     s = re.sub(r"\s+", " ", s)
     return s.strip(" ,")
+
+
+def parse_exclude_keys(raw: object) -> set[str]:
+    """
+    Parse a pipe-separated string into a normalized set (lowercased, stripped).
+    """
+    if raw is None:
+        return set()
+    try:
+        if pd.isna(raw):
+            return set()
+    except Exception:
+        pass
+    s = str(raw).strip()
+    if not s:
+        return set()
+    return {token.strip().lower() for token in s.split("|") if token.strip()}

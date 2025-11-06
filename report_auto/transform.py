@@ -39,6 +39,7 @@ from report_auto.utils import (
     sort_dupe_items_key,
     sort_label_items_key,
     compute_percentages,
+    parse_exclude_keys,
 )
 from typing import Optional, List, Dict
 import pandas as pd
@@ -101,6 +102,13 @@ def generate_column_report(
     if "delimiter" not in cfg.columns:
         cfg["delimiter"] = ""
 
+    # --- Global exclusions (values/tokens) ---
+    # Build a single global set from any non-empty cells in the 'exclude_keys' column.
+    global_exclude_set: set[str] = set()
+    if "exclude_keys" in cfg.columns:
+        for cell in cfg["exclude_keys"].dropna().tolist():
+            global_exclude_set |= parse_exclude_keys(cell)
+
     # De-duplicate input DataFrame column names (main report path)
     df_work, dedup_groups = deduplicate_columns(report_df)
 
@@ -130,12 +138,13 @@ def generate_column_report(
 
     sections = []
     sections.append([["Total rows", "", total_rows]])
+    if global_exclude_set:
+        sections.append([["(note) EXCLUDING (global)", "|".join(sorted(global_exclude_set)), ""]])
 
     # Iterate per-config-row; each row produces exactly one section
     for _, r in cfg.iterrows():
         base_name = r["column"]
         base_norm = normalize_name(base_name)
-        # Resolve a single column to analyze: if user specified suffix (e.g., foo.1)
         col_name = None
         # Exact normalized match across df_work
         for c in df_work.columns:
@@ -160,6 +169,8 @@ def generate_column_report(
 
         if r["duplicate"]:
             s = series.str.strip().str.lower()
+            if global_exclude_set:
+                s = s[~s.isin(global_exclude_set)]
             counts = s.value_counts()
             duplicate = counts[counts > 1]
             section = [[hdr, "Duplicates", "Instances"]]
@@ -200,6 +211,8 @@ def generate_column_report(
                 else:
                     # No delimiter provided; treat the entire cell as a single token
                     items = series.fillna("").astype(str).str.strip().str.lower()
+                if global_exclude_set:
+                    items = items[~items.isin(global_exclude_set)]
                 cnt = int((items == value).sum())
             elif r["root_only"]:
                 if delim is not None:
@@ -207,10 +220,16 @@ def generate_column_report(
                         r"\s+" if delim.isspace() else rf"\s*{re.escape(delim)}\s*"
                     )
                     first = series.str.split(split_pat, regex=True, expand=True)[0]
-                    cnt = int(first.str.strip().str.lower().eq(value).sum())
+                    first = first.str.strip().str.lower()
+                    if global_exclude_set:
+                        first = first[~first.isin(global_exclude_set)]
+                    cnt = int(first.eq(value).sum())
                 else:
                     _warn_root_only_without_delim(col_name)
-                    cnt = int(series.str.strip().str.lower().eq(value).sum())
+                    s_norm = series.str.strip().str.lower()
+                    if global_exclude_set:
+                        s_norm = s_norm[~s_norm.isin(global_exclude_set)]
+                    cnt = int(s_norm.eq(value).sum())
             else:
                 if delim is not None:
                     d_pat = r"\s+" if delim.isspace() else re.escape(delim)
@@ -220,7 +239,10 @@ def generate_column_report(
                         series.str.lower().str.contains(pattern, regex=True).sum()
                     )
                 else:
-                    cnt = int(series.str.strip().str.lower().eq(value).sum())
+                    s_norm = series.str.strip().str.lower()
+                    if global_exclude_set:
+                        s_norm = s_norm[~s_norm.isin(global_exclude_set)]
+                    cnt = int(s_norm.eq(value).sum())
 
             section = [[hdr, "%", "Count"]]
             # Choose denominator based on path
@@ -255,6 +277,8 @@ def generate_column_report(
                 )
             else:
                 items = series.fillna("").astype(str).str.strip().str.lower()
+            if global_exclude_set:
+                items = items[~items.isin(global_exclude_set)]
             for val in items:
                 label = val or "None"
                 label_counts[label] = label_counts.get(label, 0) + 1
@@ -265,6 +289,8 @@ def generate_column_report(
             elif r["root_only"] and delim is None:
                 _warn_root_only_without_delim(col_name)
             s = series.str.strip().str.lower()
+            if global_exclude_set:
+                s = s[~s.isin(global_exclude_set)]
             for val in sorted(s.unique()):
                 if not val.strip():
                     continue
@@ -569,9 +595,7 @@ def run_basic_insights(
         return out
 
     if dataframe.columns.duplicated().any():
-        print(
-            "[insights] Detected duplicate column names; de-duplicating for analysis."
-        )
+
         df_work = dataframe.copy()
         df_work.columns = _make_unique(df_work.columns)
     else:

@@ -22,5 +22,5 @@ def load_csv(path: str) -> pd.DataFrame:
     # Treat blank strings as missing values (nan) for reliable numeric and boolean ops
     df = df.replace(r"^\s*$", np.nan, regex=True)
     # Trim whitespace from all string cells without touching non-strings
-    df = df.applymap(clean_list_string)
+    df = df.map(clean_list_string)
     return df

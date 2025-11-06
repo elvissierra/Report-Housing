@@ -26,7 +26,7 @@ __email__ = "elvis_sierra@apple.com"
 __version__ = "4.5"
 __status__ = "dev"
 __date_created__ = "6.11.2025"
-__last_modified__ = "11.4.2025"
+__last_modified__ = "11.6.2025"
 
 
 import os
