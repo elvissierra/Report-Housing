@@ -36,6 +36,7 @@ import venv
 import argparse
 from pathlib import Path
 
+
 def _ensure_runtime() -> None:
     """
     Zero-setup bootstrap: if pandas/numpy are missing, create a local venv,
@@ -43,7 +44,8 @@ def _ensure_runtime() -> None:
     """
     try:
         import pandas  # noqa: F401
-        import numpy   # noqa: F401
+        import numpy  # noqa: F401
+
         return
     except Exception:
         pass
@@ -60,7 +62,17 @@ def _ensure_runtime() -> None:
     try:
         print("⏳ Installing dependencies (pandas, numpy, openpyxl)…")
         subprocess.check_call([str(py_bin), "-m", "pip", "install", "--upgrade", "pip"])
-        subprocess.check_call([str(py_bin), "-m", "pip", "install", "pandas>=2.0", "numpy>=1.24", "openpyxl>=3.1"])
+        subprocess.check_call(
+            [
+                str(py_bin),
+                "-m",
+                "pip",
+                "install",
+                "pandas>=2.0",
+                "numpy>=1.24",
+                "openpyxl>=3.1",
+            ]
+        )
     except subprocess.CalledProcessError as e:
         print(f"❌ Failed to install dependencies: {e}")
         sys.exit(1)
@@ -68,6 +80,7 @@ def _ensure_runtime() -> None:
     # Re-exec this script under the venv's Python, preserving args
     print("✅ Environment ready. Re-launching…")
     os.execv(str(py_bin), [str(py_bin), str(Path(__file__).resolve()), *sys.argv[1:]])
+
 
 _ensure_runtime()
 
@@ -148,11 +161,12 @@ if __name__ == "__main__":
         try:
             import tkinter as tk
             from tkinter import filedialog, messagebox
+
             root = tk.Tk()
             root.withdraw()
             chosen = filedialog.askopenfilename(
                 title="Select report_config.csv",
-                filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+                filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
             )
             if not chosen:
                 print("No configuration selected. Exiting.")
@@ -186,10 +200,17 @@ if __name__ == "__main__":
     config_df = pd.read_csv(args.config_path, header=0, skiprows=2)
 
     # If launched via GUI and input is an Excel workbook, offer to process all sheets
-    if gui_selected and str(input_path).lower().endswith((".xls", ".xlsx")) and not args.multi_sheet:
+    if (
+        gui_selected
+        and str(input_path).lower().endswith((".xls", ".xlsx"))
+        and not args.multi_sheet
+    ):
         try:
             from tkinter import messagebox
-            if messagebox.askyesno("Process all sheets?", "Detected an Excel workbook. Process ALL sheets?"):
+
+            if messagebox.askyesno(
+                "Process all sheets?", "Detected an Excel workbook. Process ALL sheets?"
+            ):
                 args.multi_sheet = True
         except Exception:
             pass
