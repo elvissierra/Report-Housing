@@ -29,6 +29,11 @@ __date_created__ = "6.11.2025"
 __last_modified__ = "11.6.2025"
 
 
+import pandas as pd
+from report_auto.extract import load_csv
+from report_auto.transform import generate_column_report
+from report_auto.generator import assemble_report, save_report
+from report_auto.utils import normalize_headers
 import os
 import sys
 import subprocess
@@ -84,11 +89,6 @@ def _ensure_runtime() -> None:
 
 _ensure_runtime()
 
-import pandas as pd
-from report_auto.extract import load_csv
-from report_auto.transform import generate_column_report
-from report_auto.generator import assemble_report, save_report
-from report_auto.utils import normalize_headers
 
 
 def run_auto_report(

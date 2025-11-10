@@ -120,12 +120,6 @@ def compute_percentages(counts: Dict[str, int]) -> Dict[str, int]:
 
 
 def clean_list_string(val: object) -> str:
-    """
-    Sanitize list-like display strings by allowing only letters, digits,
-    spaces, and commas. Remove all other punctuation (e.g., underscores,
-    slashes, percent signs, parentheses). Normalize comma spacing and
-    collapse repeated spaces.
-    """
     if pd.isna(val):
         return ""
     s = str(val)
@@ -142,9 +136,7 @@ def clean_list_string(val: object) -> str:
 # Minimal, non-destructive cell cleaner: trims whitespace, preserves delimiters and NaN
 def clean_string(val: object) -> str | float:
     """
-    Minimal cleaner: trim leading/trailing whitespace.
-    - Preserves delimiters like '|' and '(' for later transform logic.
-    - Preserves NaN (returns it unchanged) so numeric paths still work.
+    minimal cleaner: trim leading/trailing whitespace
     """
     try:
         if pd.isna(val):
@@ -170,7 +162,7 @@ def strip_excluded_in_series(
     s: pd.Series, delim: str | None, exclude_set: set[str]
 ) -> pd.Series:
     """
-    remove tokens present in exclude_set and rejoin the remainder with a single space.
+    remove tokens present in exclude_set and rejoin the remainder with a single space
     """
     if not exclude_set:
         return s.fillna("").astype(str)
@@ -193,7 +185,7 @@ def strip_excluded_in_series(
 
 def first_non_excluded(parts: list, exclude_set: set[str]) -> str:
     """
-    return first token not in exclude_set; empty string if none.
+    return first token not in exclude_set/ empty string if none
     """
     for p in parts:
         t = str(p).strip().lower()
@@ -204,14 +196,14 @@ def first_non_excluded(parts: list, exclude_set: set[str]) -> str:
 
 def format_exclusion_note(exclude_set: set[str]) -> str:
     """
-    Pipe-join a set for display in the report.
+    pipe join a set for display in the report
     """
     return " | ".join(sorted(exclude_set)) if exclude_set else ""
 
 
 def parse_exclude_keys(raw: object) -> set[str]:
     """
-    Parse a pipe-separated string into a normalized set (lowercased, stripped).
+    parse a pipe-separated string into a normalized set
     """
     if raw is None:
         return set()
