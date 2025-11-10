@@ -118,10 +118,11 @@ def generate_column_report(
     def _warn_if_no_delimiter(series: pd.Series, delim: str, col: str) -> None:
         try:
             if not series.astype(str).str.contains(re.escape(str(delim))).any():
-                log_warn(f"[config] Note: Delimiter '{delim}' not found in column '{col}'. Split will leave cells intact.")
+                log_warn(
+                    f"[config] Note: Delimiter '{delim}' not found in column '{col}'. Split will leave cells intact."
+                )
         except Exception:
             pass
-
 
     # De-duplicate input DataFrame column names (main report path)
     df_work, dedup_groups = deduplicate_columns(report_df)
@@ -140,7 +141,6 @@ def generate_column_report(
     # Use df_work for row counts
     total_rows = len(df_work)
     root_only_warning_emitted = False
-
 
     def _warn_root_only_without_delim(col: str) -> None:
         nonlocal root_only_warning_emitted
@@ -176,7 +176,11 @@ def generate_column_report(
         row_exclude_set: set[str] = set()
         if "exclude_keys" in cfg.columns and not pd.isna(r.get("exclude_keys", None)):
             row_exclude_set = parse_exclude_keys(r.get("exclude_keys", ""))
-        eff_exclude_set = (global_exclude_set | row_exclude_set) if global_exclude_set else row_exclude_set
+        eff_exclude_set = (
+            (global_exclude_set | row_exclude_set)
+            if global_exclude_set
+            else row_exclude_set
+        )
 
         if r["clean"]:
             clean_section = [[hdr, "", "Cleaned"]]
@@ -188,13 +192,17 @@ def generate_column_report(
 
         if r["duplicate"]:
             # Subtract excluded keys from each cell, then normalize for duplicate counting
-            s_clean = strip_excluded_in_series(series.astype(str), r.get("delimiter", ""), eff_exclude_set)
+            s_clean = strip_excluded_in_series(
+                series.astype(str), r.get("delimiter", ""), eff_exclude_set
+            )
             s = s_clean.str.strip().str.lower()
             counts = s.value_counts()
             duplicate = counts[counts > 1]
             section = [[hdr, "Duplicates", "Instances"]]
             if row_exclude_set:
-                section.append(["EXCLUDING", format_exclusion_note(row_exclude_set), ""])
+                section.append(
+                    ["EXCLUDING", format_exclusion_note(row_exclude_set), ""]
+                )
             for value, cnt in sorted(duplicate.items(), key=sort_dupe_items_key):
                 section.append(["", value, int(cnt)])
             sections.append(section)
@@ -242,7 +250,9 @@ def generate_column_report(
                     cnt = int(pd.Series(first).eq(value).sum())
                 else:
                     _warn_root_only_without_delim(col_name)
-                    s_clean = strip_excluded_in_series(series.astype(str), None, eff_exclude_set)
+                    s_clean = strip_excluded_in_series(
+                        series.astype(str), None, eff_exclude_set
+                    )
                     s_norm = s_clean.str.strip().str.lower()
                     cnt = int(s_norm.eq(value).sum())
             else:
@@ -255,13 +265,17 @@ def generate_column_report(
                         series.str.lower().str.contains(pattern, regex=True).sum()
                     )
                 else:
-                    s_clean = strip_excluded_in_series(series.astype(str), None, eff_exclude_set)
+                    s_clean = strip_excluded_in_series(
+                        series.astype(str), None, eff_exclude_set
+                    )
                     s_norm = s_clean.str.strip().str.lower()
                     cnt = int(s_norm.eq(value).sum())
 
             section = [[hdr, "%", "Count"]]
             if row_exclude_set:
-                section.append(["EXCLUDING", format_exclusion_note(row_exclude_set), ""])
+                section.append(
+                    ["EXCLUDING", format_exclusion_note(row_exclude_set), ""]
+                )
             # Choose denominator based on path
             if r["separate_nodes"]:
                 denom = (
@@ -306,7 +320,9 @@ def generate_column_report(
                 if r["root_only"] and delim is None:
                     _warn_root_only_without_delim(col_name)
                 # Subtract excluded keys inside each cell before counting uniques
-                s_clean = strip_excluded_in_series(series.astype(str), r.get("delimiter", ""), eff_exclude_set)
+                s_clean = strip_excluded_in_series(
+                    series.astype(str), r.get("delimiter", ""), eff_exclude_set
+                )
                 s = s_clean.str.strip().str.lower()
             for val in sorted(s.unique()):
                 if not val.strip():
@@ -614,7 +630,6 @@ def run_basic_insights(
         return out
 
     if dataframe.columns.duplicated().any():
-
         df_work = dataframe.copy()
         df_work.columns = _make_unique(df_work.columns)
     else:

@@ -119,7 +119,6 @@ def compute_percentages(counts: Dict[str, int]) -> Dict[str, int]:
     return floors
 
 
-
 def clean_list_string(val: object) -> str:
     """
     Sanitize list-like display strings by allowing only letters, digits,
@@ -154,24 +153,29 @@ def clean_string(val: object) -> str | float:
         pass
     return str(val).strip()
 
-def split_pattern_for(delim: str | None) -> str:
-        """
-        split on delimitter
-        """
-        if not delim:
-            return r"\s+"
-        d = str(delim)
-        if d.isspace():
-            return r"\s+"
-        return rf"\s*{re.escape(d)}\s*"
 
-def strip_excluded_in_series(s: pd.Series, delim: str | None, exclude_set: set[str]) -> pd.Series:
+def split_pattern_for(delim: str | None) -> str:
+    """
+    split on delimitter
+    """
+    if not delim:
+        return r"\s+"
+    d = str(delim)
+    if d.isspace():
+        return r"\s+"
+    return rf"\s*{re.escape(d)}\s*"
+
+
+def strip_excluded_in_series(
+    s: pd.Series, delim: str | None, exclude_set: set[str]
+) -> pd.Series:
     """
     remove tokens present in exclude_set and rejoin the remainder with a single space.
     """
     if not exclude_set:
         return s.fillna("").astype(str)
     pat = split_pattern_for(delim)
+
     def _one(text: object) -> str:
         parts = re.split(pat, str(text or ""))
         kept = []
@@ -183,7 +187,9 @@ def strip_excluded_in_series(s: pd.Series, delim: str | None, exclude_set: set[s
                 continue
             kept.append(t)
         return " ".join(kept)
+
     return s.fillna("").astype(str).apply(_one)
+
 
 def first_non_excluded(parts: list, exclude_set: set[str]) -> str:
     """
@@ -195,11 +201,13 @@ def first_non_excluded(parts: list, exclude_set: set[str]) -> str:
             return t
     return ""
 
+
 def format_exclusion_note(exclude_set: set[str]) -> str:
     """
     Pipe-join a set for display in the report.
     """
     return " | ".join(sorted(exclude_set)) if exclude_set else ""
+
 
 def parse_exclude_keys(raw: object) -> set[str]:
     """
