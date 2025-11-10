@@ -9,7 +9,7 @@ and empty-string → nan conversion so downstream transforms can assume consiste
 from __future__ import annotations
 import pandas as pd
 import numpy as np
-from report_auto.utils import clean_list_string, normalize_headers
+from report_auto.utils import clean_string, normalize_headers
 
 
 def load_csv(path: str) -> pd.DataFrame:
@@ -21,6 +21,6 @@ def load_csv(path: str) -> pd.DataFrame:
 
     # Treat blank strings as missing values (nan) for reliable numeric and boolean ops
     df = df.replace(r"^\s*$", np.nan, regex=True)
-    # Trim whitespace from all string cells without touching non-strings
-    df = df.map(clean_list_string)
+    # Trim whitespace from all string cells, preserving delimiters and NaN
+    df = df.applymap(clean_string)
     return df

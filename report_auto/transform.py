@@ -40,7 +40,12 @@ from report_auto.utils import (
     sort_label_items_key,
     compute_percentages,
     parse_exclude_keys,
+    split_pattern_for,
+    strip_excluded_in_series,
+    first_non_excluded,
+    format_exclusion_note,
 )
+from report_auto.logs import warn as log_warn
 from typing import Optional, List, Dict
 import pandas as pd
 import numpy as np
@@ -102,12 +107,21 @@ def generate_column_report(
     if "delimiter" not in cfg.columns:
         cfg["delimiter"] = ""
 
-    # --- Global exclusions (values/tokens) ---
+    # --- Global exclusions (values/keys) ---
     # Build a single global set from any non-empty cells in the 'exclude_keys' column.
     global_exclude_set: set[str] = set()
     if "exclude_keys" in cfg.columns:
         for cell in cfg["exclude_keys"].dropna().tolist():
             global_exclude_set |= parse_exclude_keys(cell)
+
+    # Helpers: key-aware exclusion so we subtract keys inside cells, not drop entire rows.
+    def _warn_if_no_delimiter(series: pd.Series, delim: str, col: str) -> None:
+        try:
+            if not series.astype(str).str.contains(re.escape(str(delim))).any():
+                log_warn(f"[config] Note: Delimiter '{delim}' not found in column '{col}'. Split will leave cells intact.")
+        except Exception:
+            pass
+
 
     # De-duplicate input DataFrame column names (main report path)
     df_work, dedup_groups = deduplicate_columns(report_df)
@@ -127,19 +141,18 @@ def generate_column_report(
     total_rows = len(df_work)
     root_only_warning_emitted = False
 
+
     def _warn_root_only_without_delim(col: str) -> None:
         nonlocal root_only_warning_emitted
         if not root_only_warning_emitted:
             print(
                 f"[config] Warning: ROOT_ONLY is set but DELIMITER is empty for column '{col}'. "
-                f"Falling back to whole-cell equality."
+                f"Falling back to whole-cell"
             )
             root_only_warning_emitted = True
 
     sections = []
     sections.append([["Total rows", "", total_rows]])
-    if global_exclude_set:
-        sections.append([["(note) EXCLUDING (global)", "|".join(sorted(global_exclude_set)), ""]])
 
     # Iterate per-config-row; each row produces exactly one section
     for _, r in cfg.iterrows():
@@ -159,6 +172,12 @@ def generate_column_report(
         hdr = col_name.replace("_", " ").upper()
         series = ensure_series(df_work[col_name]).fillna("").astype(str)
 
+        # Row-level exclude keys (only for this config row), merged with global excludes
+        row_exclude_set: set[str] = set()
+        if "exclude_keys" in cfg.columns and not pd.isna(r.get("exclude_keys", None)):
+            row_exclude_set = parse_exclude_keys(r.get("exclude_keys", ""))
+        eff_exclude_set = (global_exclude_set | row_exclude_set) if global_exclude_set else row_exclude_set
+
         if r["clean"]:
             clean_section = [[hdr, "", "Cleaned"]]
             cleaned = series.apply(clean_list_string)
@@ -168,12 +187,14 @@ def generate_column_report(
             continue
 
         if r["duplicate"]:
-            s = series.str.strip().str.lower()
-            if global_exclude_set:
-                s = s[~s.isin(global_exclude_set)]
+            # Subtract excluded keys from each cell, then normalize for duplicate counting
+            s_clean = strip_excluded_in_series(series.astype(str), r.get("delimiter", ""), eff_exclude_set)
+            s = s_clean.str.strip().str.lower()
             counts = s.value_counts()
             duplicate = counts[counts > 1]
             section = [[hdr, "Duplicates", "Instances"]]
+            if row_exclude_set:
+                section.append(["EXCLUDING", format_exclusion_note(row_exclude_set), ""])
             for value, cnt in sorted(duplicate.items(), key=sort_dupe_items_key):
                 section.append(["", value, int(cnt)])
             sections.append(section)
@@ -194,65 +215,61 @@ def generate_column_report(
         delim = normalize_delim(r["delimiter"])
         value = str(r["value"]).strip().lower() if "value" in r else ""
 
+        def _pick_first_non_excluded_local(lst, es=eff_exclude_set):
+            return first_non_excluded(lst, es)
+
         # --- Case A: Targeted VALUE ---
         if value:
             if r["separate_nodes"]:
-                if delim:
-                    split_pat = (
-                        r"\s+" if delim.isspace() else rf"\s*{re.escape(str(delim))}\s*"
-                    )
-                    items = (
-                        series.str.split(split_pat, regex=True)
-                        .explode()
-                        .dropna()
-                        .str.strip()
-                        .str.lower()
-                    )
-                else:
-                    # No delimiter provided; treat the entire cell as a single token
-                    items = series.fillna("").astype(str).str.strip().str.lower()
-                if global_exclude_set:
-                    items = items[~items.isin(global_exclude_set)]
+                _warn_if_no_delimiter(series, delim, col_name)
+                split_pat = split_pattern_for(delim)
+                items = (
+                    series.str.split(split_pat, regex=True)
+                    .explode()
+                    .dropna()
+                    .str.strip()
+                    .str.lower()
+                )
+                if eff_exclude_set:
+                    items = items[~items.isin(eff_exclude_set)]
                 cnt = int((items == value).sum())
             elif r["root_only"]:
                 if delim is not None:
-                    split_pat = (
-                        r"\s+" if delim.isspace() else rf"\s*{re.escape(delim)}\s*"
-                    )
-                    first = series.str.split(split_pat, regex=True, expand=True)[0]
-                    first = first.str.strip().str.lower()
-                    if global_exclude_set:
-                        first = first[~first.isin(global_exclude_set)]
-                    cnt = int(first.eq(value).sum())
+                    _warn_if_no_delimiter(series, delim, col_name)
+                    split_pat = split_pattern_for(delim)
+                    parts = series.str.split(split_pat, regex=True)
+                    first = parts.apply(_pick_first_non_excluded_local)
+                    cnt = int(pd.Series(first).eq(value).sum())
                 else:
                     _warn_root_only_without_delim(col_name)
-                    s_norm = series.str.strip().str.lower()
-                    if global_exclude_set:
-                        s_norm = s_norm[~s_norm.isin(global_exclude_set)]
+                    s_clean = strip_excluded_in_series(series.astype(str), None, eff_exclude_set)
+                    s_norm = s_clean.str.strip().str.lower()
                     cnt = int(s_norm.eq(value).sum())
             else:
                 if delim is not None:
-                    d_pat = r"\s+" if delim.isspace() else re.escape(delim)
+                    split_pat = split_pattern_for(delim)
                     v = re.escape(value)
-                    pattern = rf"(?:^|{d_pat})\s*{v}\s*(?:{d_pat}|$)"
+                    # Build a pattern that matches the value as a whole key
+                    pattern = rf"(?:^|{split_pat})\s*{v}\s*(?:{split_pat}|$)"
                     cnt = int(
                         series.str.lower().str.contains(pattern, regex=True).sum()
                     )
                 else:
-                    s_norm = series.str.strip().str.lower()
-                    if global_exclude_set:
-                        s_norm = s_norm[~s_norm.isin(global_exclude_set)]
+                    s_clean = strip_excluded_in_series(series.astype(str), None, eff_exclude_set)
+                    s_norm = s_clean.str.strip().str.lower()
                     cnt = int(s_norm.eq(value).sum())
 
             section = [[hdr, "%", "Count"]]
+            if row_exclude_set:
+                section.append(["EXCLUDING", format_exclusion_note(row_exclude_set), ""])
             # Choose denominator based on path
             if r["separate_nodes"]:
                 denom = (
                     int(items.shape[0]) if hasattr(items, "shape") else int(len(items))
                 )
             elif r["root_only"] and delim is not None:
-                # use the tokenized first piece as the population
-                denom = int(first.str.strip().ne("").sum())
+                # use the keyized first piece as the population
+                denom = int(pd.Series(first).str.strip().ne("").sum())
             else:
                 # default: non-empty rows in this column
                 denom = int(series.str.strip().ne("").sum())
@@ -264,33 +281,33 @@ def generate_column_report(
         # --- Case B: No VALUE → distribution/aggregate ---
         label_counts: dict[str, int] = {}
         if r["separate_nodes"]:
-            if delim:
-                split_pat = (
-                    r"\s+" if delim.isspace() else rf"\s*{re.escape(str(delim))}\s*"
-                )
-                items = (
-                    series.str.split(split_pat, regex=True)
-                    .explode()
-                    .dropna()
-                    .str.strip()
-                    .str.lower()
-                )
-            else:
-                items = series.fillna("").astype(str).str.strip().str.lower()
-            if global_exclude_set:
-                items = items[~items.isin(global_exclude_set)]
+            _warn_if_no_delimiter(series, delim, col_name)
+            split_pat = split_pattern_for(delim)
+            items = (
+                series.str.split(split_pat, regex=True)
+                .explode()
+                .dropna()
+                .str.strip()
+                .str.lower()
+            )
+            if eff_exclude_set:
+                items = items[~items.isin(eff_exclude_set)]
             for val in items:
                 label = val or "None"
                 label_counts[label] = label_counts.get(label, 0) + 1
         else:
             if r["root_only"] and delim is not None:
-                split_pat = r"\s+" if delim.isspace() else rf"\s*{re.escape(delim)}\s*"
-                series = series.str.split(split_pat, regex=True, expand=True)[0]
-            elif r["root_only"] and delim is None:
-                _warn_root_only_without_delim(col_name)
-            s = series.str.strip().str.lower()
-            if global_exclude_set:
-                s = s[~s.isin(global_exclude_set)]
+                _warn_if_no_delimiter(series, delim, col_name)
+                split_pat = split_pattern_for(delim)
+                parts = series.str.split(split_pat, regex=True)
+                series = parts.apply(_pick_first_non_excluded_local)
+                s = pd.Series(series).str.strip().str.lower()
+            else:
+                if r["root_only"] and delim is None:
+                    _warn_root_only_without_delim(col_name)
+                # Subtract excluded keys inside each cell before counting uniques
+                s_clean = strip_excluded_in_series(series.astype(str), r.get("delimiter", ""), eff_exclude_set)
+                s = s_clean.str.strip().str.lower()
             for val in sorted(s.unique()):
                 if not val.strip():
                     continue
@@ -298,6 +315,8 @@ def generate_column_report(
                 label_counts[val] = cnt
 
         section = [[hdr, "%", "Count"]]
+        if row_exclude_set:
+            section.append(["EXCLUDING", format_exclusion_note(row_exclude_set), ""])
         pcts = compute_percentages(label_counts)
         for label, cnt in sorted(label_counts.items(), key=sort_label_items_key):
             section.append([label, f"{pcts.get(label, 0)}%", cnt])
