@@ -1,10 +1,9 @@
+"""
+Stand alone script to compare columns in what was present and what is now present between strings.
+e.g. String original: "F 1541 Merivale Rd , …" String compared against: "D 1541 Ch Merivale , …"
+"""
+
 from __future__ import annotations
-
-"""
- Stand alone script to compare columns in what was present and what is now present between strings.
- e.g. String original: "F 1541 Merivale Rd , …" String compared against: "D 1541 Ch Merivale , …"
-"""
-
 import re
 import pandas as pd
 import argparse

@@ -40,6 +40,69 @@ import subprocess
 import venv
 import argparse
 from pathlib import Path
+import json
+from typing import Dict, List
+
+
+def recipe_to_config_df(recipe: Dict) -> pd.DataFrame:
+    """
+    Translate a SPA JSON `recipe` into the legacy config DataFrame that
+    `generate_column_report` expects.
+
+    The JSON structure mirrors the frontend types:
+      - recipe.rules[] with: column, operation, options{delimiter,separateNodes,rootOnly,value,excludeKeys}, enabled
+      - recipe.insights: {sources[], targets[], threshold}
+
+    Returns
+    -------
+    pd.DataFrame
+        Rows compatible with `transform.generate_column_report`, including
+        INSIGHTS rows consumed by `run_basic_insights`.
+    """
+    rows: List[Dict[str, object]] = []
+    for r in recipe.get("rules", []):
+        if not r.get("enabled", True):
+            continue
+        opts = r.get("options", {}) or {}
+        op = (r.get("operation") or "").strip().lower()
+        row = {
+            "column": r.get("column", ""),
+            "value": (opts.get("value") or ""),
+            "delimiter": (opts.get("delimiter") or ""),
+            "separate_nodes": bool(opts.get("separateNodes")),
+            "root_only": bool(opts.get("rootOnly")),
+            "duplicate": op == "duplicate",
+            "average": op == "average",
+            "clean": op == "clean",
+            # distribution/valueCount become the generic aggregate path
+            "aggregate": op in ("distribution", "valuecount"),
+            "exclude_keys": "|".join(
+                [
+                    str(x).strip()
+                    for x in (opts.get("excludeKeys") or [])
+                    if str(x).strip()
+                ]
+            ),
+        }
+        rows.append(row)
+
+    ins = recipe.get("insights", {}) or {}
+    sources = [s for s in ins.get("sources", []) if str(s).strip()]
+    targets = [t for t in ins.get("targets", []) if str(t).strip()]
+    threshold = ins.get("threshold", None)
+
+    if sources:
+        rows.append({"column": "INSIGHTS SOURCES", "value": "|".join(sources)})
+    if targets:
+        rows.append({"column": "INSIGHTS TARGETS", "value": "|".join(targets)})
+    if threshold is not None and str(threshold).strip() != "":
+        rows.append({"column": "INSIGHTS THRESHOLD", "value": str(threshold)})
+
+    cfg = pd.DataFrame(rows)
+    # Normalize headers now to match downstream expectations
+    from report_auto.utils import normalize_headers
+
+    return normalize_headers(cfg)
 
 
 def _ensure_runtime() -> None:
@@ -88,7 +151,6 @@ def _ensure_runtime() -> None:
 
 
 _ensure_runtime()
-
 
 
 def run_auto_report(
@@ -148,13 +210,70 @@ if __name__ == "__main__":
     parser.add_argument(
         "--config-path",
         default=None,
-        help="Path to report_config CSV (first two rows set to be INPUT/OUTPUT). If omitted, a file picker will open.",
+        help="Path to legacy report_config.csv (first two rows must contain INPUT/OUTPUT). Mutually exclusive with --recipe.",
+    )
+    parser.add_argument(
+        "--recipe",
+        default=None,
+        help="Path to recipe.json emitted by the Vue Designer (no GUI; requires --input and --output).",
+    )
+    parser.add_argument(
+        "--input",
+        default=None,
+        help="Path to data file when using --recipe mode (CSV or Excel).",
+    )
+    parser.add_argument(
+        "--output",
+        default=None,
+        help="Destination report CSV when using --recipe mode.",
     )
     parser.add_argument(
         "--multi-sheet", action="store_true", help="Process all sheets in work book."
     )
 
     args = parser.parse_args()
+
+    # --- JSON recipe flow (no GUI) ---
+    if args.recipe:
+        if args.config_path:
+            print("❌ Provide either --config-path or --recipe, not both.")
+            sys.exit(2)
+        if not args.input or not args.output:
+            print("❌ --recipe mode requires --input and --output.")
+            sys.exit(2)
+        try:
+            with open(args.recipe, "r", encoding="utf-8") as fh:
+                recipe = json.load(fh)
+        except Exception as e:
+            print(f"❌ Failed to read recipe JSON: {e}")
+            sys.exit(2)
+
+        # Build a config DataFrame compatible with the transform layer
+        config_df = recipe_to_config_df(recipe)
+
+        # Load input dataset (CSV or Excel)
+        in_lower = str(args.input).lower()
+        if in_lower.endswith((".xls", ".xlsx")):
+            df = pd.read_excel(args.input)
+            df = normalize_headers(df)
+        else:
+            df = load_csv(args.input)
+
+        # Generate and save the report
+        report_blocks = generate_column_report(df, config_df)
+        final_report = assemble_report(report_blocks)
+        save_report(final_report, args.output)
+
+        # Optional: insights next to the output
+        try:
+            from report_auto.transform import run_basic_insights
+
+            out_dir = os.path.dirname(args.output) or "."
+            run_basic_insights(df, config_df=config_df, output_dir=out_dir)
+        except Exception as e:
+            print(f"[insights] Skipped due to error: {e}")
+
+        sys.exit(0)
 
     # GUI fallback: allow double-click / no-args usage
     if not args.config_path:
@@ -174,7 +293,9 @@ if __name__ == "__main__":
             args.config_path = chosen
             gui_selected = True
         except Exception:
-            print("Please provide --config-path /path/to/report_config.csv")
+            print(
+                "Please provide either --config-path /path/to/report_config.csv or --recipe /path/to/recipe.json with --input and --output."
+            )
             sys.exit(2)
     else:
         gui_selected = False
