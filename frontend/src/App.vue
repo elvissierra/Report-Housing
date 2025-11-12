@@ -23,9 +23,7 @@
     <v-main class="pt-12">
       <v-container fluid class="py-8">
       <v-row>
-        <!-- Left column removed -->
 
-        <!-- Center: Rules stack -->
         <v-col cols="12" md="9">
           <v-card class="mb-6" variant="outlined" rounded="lg">
             <v-card-title>Column Headers (manual)</v-card-title>
@@ -91,62 +89,23 @@
                 <v-card
                   v-for="r in store.rules"
                   :key="r.id"
-                  class="mb-4 pa-4"
+                  class="mb-3 pa-3"
                   variant="outlined"
                   elevation="0"
                   rounded="lg"
                 >
-                  <v-row class="align-center">
-                    <v-col cols="12" md="6">
+                  <v-row dense class="align-center">
+                    <v-col cols="12" md="8">
                       <div class="text-subtitle-1">
                         <strong>{{ r.column }}</strong> — {{ r.operation }}
                       </div>
                     </v-col>
-                    <v-col cols="12" md="2" class="d-flex align-center">
-                      <v-switch v-model="r.enabled" inset density="compact" class="switch-sm" @update:modelValue="update(r)" />
-                      <span class="text-caption ml-2">enabled</span>
-                    </v-col>
-                    <v-col cols="12" md="2" class="d-flex justify-end">
+                    <v-col cols="12" md="4" class="d-flex justify-end">
                       <v-btn icon="mdi-delete" variant="text" @click="remove(r.id)" />
                     </v-col>
                   </v-row>
-                  
-                  <v-row dense class="ga-3">
-                    <v-col cols="12" md="3" v-if="r.operation === 'valueCount'">
-                      <v-text-field
-                        v-model="r.options.value"
-                        label="value"
-                        density="comfortable"
-                        clearable
-                        @blur="update(r)"
-                      />
-                    </v-col>
-
-                    <v-col cols="12" md="4">
-                      <v-combobox
-                        v-model="excludeKeysText[r.id]"
-                        label="exclude keys"
-                        multiple
-                        chips
-                        closable-chips
-                        clearable
-                        hide-details
-                        density="comfortable"
-                        @update:modelValue="applyExcludeChips(r)"
-                      />
-                    </v-col>
-
-                    <v-col cols="12" md="3">
-                      <v-text-field
-                        v-model="r.options.delimiter"
-                        label="delimiter"
-                        clearable
-                        density="comfortable"
-                        @blur="update(r)"
-                      />
-                    </v-col>
-
-                    <v-col cols="12" md="2" class="d-flex justify-space-between">
+                  <v-row dense class="align-center mb-1">
+                    <v-col cols="12" md="6" class="d-flex ga-4 py-0">
                       <div class="d-flex flex-column align-center">
                         <v-switch
                           v-model="r.options.separateNodes"
@@ -170,7 +129,44 @@
                         <div class="text-caption mt-1 nowrap">root only</div>
                       </div>
                     </v-col>
-
+                    <v-col cols="12" md="6" class="d-flex justify-end align-center py-0">
+                      <v-switch v-model="r.enabled" inset density="compact" class="switch-sm" @update:modelValue="update(r)" />
+                      <span class="text-caption ml-2">enabled</span>
+                    </v-col>
+                  </v-row>
+                  <v-row dense class="ga-2 mt-1">
+                    <v-col cols="12" md="3" v-if="r.operation === 'valueCount'">
+                      <v-text-field
+                        v-model="r.options.value"
+                        label="value"
+                        density="compact"
+                        clearable
+                        @blur="update(r)"
+                      />
+                    </v-col>
+                    <v-col cols="12" md="3">
+                      <v-text-field
+                        v-model="r.options.delimiter"
+                        label="delimiter"
+                        clearable
+                        density="compact"
+                        @blur="update(r)"
+                      />
+                    </v-col>
+                    <v-col cols="12" md="3">
+                      <v-combobox
+                        v-model="excludeKeysText[r.id]"
+                        label="exclude keys"
+                        multiple
+                        chips
+                        :chip-props="{ size: 'small' }"
+                        closable-chips
+                        clearable
+                        hide-details
+                        density="compact"
+                        @update:modelValue="applyExcludeChips(r)"
+                      />
+                    </v-col>
                   </v-row>
                 </v-card>
               </template>
@@ -227,10 +223,6 @@
           <v-card-text>
             <v-btn block class="text-truncate" variant="tonal" color="primary" @click="exportRecipe" prepend-icon="mdi-content-save">Export recipe.json</v-btn>
             <v-btn block class="mt-2 text-truncate" variant="tonal" @click="openImport" prepend-icon="mdi-file-import">Import recipe.json</v-btn>
-            <v-btn block class="mt-2 text-truncate" variant="text" prepend-icon="mdi-content-copy" @click="copyCli">Copy CLI</v-btn>
-            <v-divider class="my-3" />
-            <div class="text-subtitle-2 mb-1">CLI</div>
-            <v-textarea readonly variant="outlined" density="comfortable" :model-value="cliHint" rows="6" />
           </v-card-text>
           </v-card>
         </v-col>
@@ -241,7 +233,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRecipeStore } from './stores/recipe'
 import type { Operation, Rule } from './types/recipe'
 
@@ -308,15 +300,6 @@ function onImport(e: Event) {
 }
 function exportRecipe() { store.exportRecipe() }
 
-function copyCli() {
-  navigator.clipboard?.writeText(cliHint.value as string)
-}
-
-const cliHint = computed(() =>
-`python backend/main.py \\
-  --recipe ./recipe.json \\
-  --input /path/to/data.csv \\
-  --output ./Analytics_Report.csv`)
 
 function loadTemplate(name: string) {
   if (name === 'minimal') {
