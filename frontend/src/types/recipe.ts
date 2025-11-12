@@ -24,7 +24,7 @@ export interface Insights {
 
 export interface Recipe {
   version: '1'
-  headersPalette: string[]
+  columnHeaders: string[]
   rules: Rule[]
   insights: Insights
 }

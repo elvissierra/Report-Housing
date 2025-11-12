@@ -1,7 +1,7 @@
 <template>
   <v-app>
     <v-app-bar density="comfortable">
-      <v-toolbar-title>Report Designer</v-toolbar-title>
+      <v-toolbar-title>Report Configure</v-toolbar-title>
       <v-toolbar-items class="ml-4">
         <v-btn variant="text" prepend-icon="mdi-content-save" @click="exportRecipe">Export</v-btn>
         <v-btn variant="text" prepend-icon="mdi-file-import" @click="openImport">Import</v-btn>
@@ -28,21 +28,26 @@
         <!-- Center: Rules stack -->
         <v-col cols="12" md="9">
           <v-card class="mb-6" variant="outlined" rounded="lg">
-            <v-card-title>Headers Palette (manual)</v-card-title>
-            <v-card-text>
+            <v-card-title>Column Headers (manual)</v-card-title>
+            <v-card-text class="py-3">
               <v-textarea
                 v-model="headersText"
                 label="Known headers"
                 placeholder="One per line or comma-separated"
-                rows="2"
+                variant="outlined"
+                rows="1"
+                hide-details
                 clearable
                 density="compact"
-                style="max-height: 64px;"
+                no-resize
+                class="my-0 no-resize-ta"
+                style="max-height: 48px;"
               />
-              <div class="d-flex justify-end">
-                <v-btn class="mt-2" variant="tonal" color="primary" @click="applyHeaders">Apply</v-btn>
+              <div class="d-flex align-center mt-1">
+                <div class="text-caption">Currently not set to identify column headers, manual intervention needed.</div>
+                <v-spacer />
+                <v-btn variant="tonal" color="primary" size="small" @click="applyHeaders">Apply</v-btn>
               </div>
-              <div class="text-caption mt-1">Used for autocomplete only—no data upload.</div>
             </v-card-text>
           </v-card>
           <v-card class="mb-6" variant="outlined" rounded="lg">
@@ -52,7 +57,7 @@
               <v-col cols="12" md="6">
                 <v-autocomplete
                   v-model="newRule.column"
-                  :items="store.recipe.headersPalette"
+                  :items="store.recipe.columnHeaders"
                   label="Column"
                   clearable
                   hide-details
@@ -97,14 +102,15 @@
                         <strong>{{ r.column }}</strong> — {{ r.operation }}
                       </div>
                     </v-col>
-                    <v-col cols="12" md="3" class="d-flex align-center">
+                    <v-col cols="12" md="2" class="d-flex align-center">
                       <v-switch v-model="r.enabled" inset density="compact" class="switch-sm" @update:modelValue="update(r)" />
                       <span class="text-caption ml-2">enabled</span>
                     </v-col>
-                    <v-col cols="12" md="3" class="d-flex justify-end">
+                    <v-col cols="12" md="2" class="d-flex justify-end">
                       <v-btn icon="mdi-delete" variant="text" @click="remove(r.id)" />
                     </v-col>
                   </v-row>
+                  
                   <v-row dense class="ga-3">
                     <v-col cols="12" md="3" v-if="r.operation === 'valueCount'">
                       <v-text-field
@@ -113,6 +119,20 @@
                         density="comfortable"
                         clearable
                         @blur="update(r)"
+                      />
+                    </v-col>
+
+                    <v-col cols="12" md="4">
+                      <v-combobox
+                        v-model="excludeKeysText[r.id]"
+                        label="exclude keys"
+                        multiple
+                        chips
+                        closable-chips
+                        clearable
+                        hide-details
+                        density="comfortable"
+                        @update:modelValue="applyExcludeChips(r)"
                       />
                     </v-col>
 
@@ -151,19 +171,6 @@
                       </div>
                     </v-col>
 
-                    <v-col cols="12" md="4">
-                      <v-combobox
-                        v-model="excludeKeysText[r.id]"
-                        label="exclude keys"
-                        multiple
-                        chips
-                        closable-chips
-                        clearable
-                        hide-details
-                        density="comfortable"
-                        @update:modelValue="applyExcludeChips(r)"
-                      />
-                    </v-col>
                   </v-row>
                 </v-card>
               </template>
@@ -181,7 +188,7 @@
           <v-card-text>
             <v-combobox
               v-model="sources"
-              :items="store.recipe.headersPalette"
+              :items="store.recipe.columnHeaders"
               label="sources"
               multiple
               chips
@@ -192,7 +199,7 @@
             />
             <v-combobox
               v-model="targets"
-              :items="store.recipe.headersPalette"
+              :items="store.recipe.columnHeaders"
               label="targets"
               multiple
               chips
@@ -207,7 +214,7 @@
               :min="0"
               :max="1"
               :step="0.05"
-              :ticks="true"
+              :show-ticks="true"
               class="mt-6"
             />
             <div class="text-caption">threshold: {{ threshold.toFixed(2) }}</div>
@@ -234,20 +241,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed} from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRecipeStore } from './stores/recipe'
 import type { Operation, Rule } from './types/recipe'
 
 const store = useRecipeStore()
 const operations: Operation[] = ['distribution','valueCount','duplicate','average','clean']
 
-const headersText = ref(store.recipe.headersPalette.join('\n'))
+const headersText = ref(store.recipe.columnHeaders.join('\n'))
 function applyHeaders() {
   const parts = headersText.value
     .split(/[\n,]+/)
     .map(s => s.trim())
     .filter(Boolean)
-  store.setHeadersPalette(parts)
+  store.setcolumnHeaders(parts)
 }
 
 const newRule = ref<{column:string, operation:Operation|null}>({ column: '', operation: null })
@@ -260,15 +267,22 @@ function addRule() {
 function update(r: Rule) { store.updateRule(r.id, r) }
 function remove(id: string) { store.removeRule(id) }
 
-const excludeKeysText = ref<Record<string, string | string[]>>({})
-function applyExclude(r: Rule) {
-  const raw = excludeKeysText.value[r.id] || ''
-  const keys = String(raw).split('|').map(s => s.trim()).filter(Boolean)
-  store.updateRule(r.id, { options: { ...r.options, excludeKeys: keys } })
+const excludeKeysText = ref<Record<string, string[]>>({})
+function syncExcludeFromStore() {
+  const map: Record<string, string[]> = {}
+  for (const r of store.rules) {
+    map[r.id] = Array.isArray(r.options.excludeKeys) ? [...r.options.excludeKeys] : []
+  }
+  excludeKeysText.value = map
 }
+onMounted(syncExcludeFromStore)
+watch(
+  () => store.rules.map(r => ({ id: r.id, keys: r.options.excludeKeys })),
+  () => syncExcludeFromStore(),
+  { deep: true }
+)
 function applyExcludeChips(r: Rule) {
-  const raw = excludeKeysText.value[r.id]
-  const arr = Array.isArray(raw) ? raw : String(raw || '').split('|')
+  const arr = excludeKeysText.value[r.id] || []
   const keys = arr.map((s: string) => String(s).trim()).filter(Boolean)
   store.updateRule(r.id, { options: { ...r.options, excludeKeys: keys } })
 }
@@ -344,4 +358,5 @@ function cryptoRandom() {
 .nowrap { white-space: nowrap; }
 .text-truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .switch-sm { transform: scale(0.85); transform-origin: center left; }
+.no-resize-ta textarea { resize: none !important; }
 </style>

@@ -3,7 +3,7 @@ import type { Recipe, Rule, Operation } from '../types/recipe'
 
 const DEFAULT_RECIPE: Recipe = {
   version: '1',
-  headersPalette: [],
+  columnHeaders: [],
   rules: [],
   insights: { sources: [], targets: [], threshold: 0.2 },
 }
@@ -19,8 +19,8 @@ export const useRecipeStore = defineStore('recipe', {
     insights: (s) => s.recipe.insights,
   },
   actions: {
-    setHeadersPalette(headers: string[]) {
-      this.recipe.headersPalette = headers.map(h => h.trim()).filter(Boolean)
+    setcolumnHeaders(headers: string[]) {
+      this.recipe.columnHeaders = headers.map(h => h.trim()).filter(Boolean)
       save(this.recipe)
     },
     addRule(column: string, operation: Operation) {
@@ -33,10 +33,10 @@ export const useRecipeStore = defineStore('recipe', {
       this.recipe.rules.push(r)
       save(this.recipe)
     },
-    updateRule(id: string, patch: Partial<Rule>) {
+    updateRule(id: string, patch: Partial<Omit<Rule, 'id'>>) {
       const i = this.recipe.rules.findIndex(r => r.id === id)
       if (i >= 0) {
-        this.recipe.rules[i] = { ...this.recipe.rules[i], ...patch }
+        this.recipe.rules[i] = { ...this.recipe.rules[i], ...patch } as Rule
         save(this.recipe)
       }
     },
@@ -48,6 +48,7 @@ export const useRecipeStore = defineStore('recipe', {
       const i = this.recipe.rules.findIndex(r => r.id === id)
       if (i < 0) return
       const [r] = this.recipe.rules.splice(i, 1)
+      if (!r) return
       this.recipe.rules.splice(Math.max(0, Math.min(toIndex, this.recipe.rules.length)), 0, r)
       save(this.recipe)
     },
