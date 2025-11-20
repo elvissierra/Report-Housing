@@ -1,7 +1,0 @@
-Software Engineer (Backend & Data), Comp 2 Inc. · March 2024 – January 2025
-Tech: Python, Django, JavaScript, Vue, Postgres, SQL, Docker, GraphQL, OpenAI, AWS EC2
-	•	Designed and implemented Postgres schemas for users, organizations, teams, media, labels, comments, and sessions, ensuring clean relational modeling and predictable query patterns for both product and analytics use cases.
-	•	Built GraphQL APIs that supported filtering, sorting, pagination, and relational loading, plus tag-based and text search over media and labels to help users quickly discover relevant content.
-	•	Integrated an OpenAI-powered assistant that used onboarding flows and database-backed context to interpret keyword-based user questions and guide them to the right features and workflows, improving feature discoverability.
-	•	Developed an internal stakeholder-facing tool that moved ideas from concept into a data-scientist evaluation pipeline and, when validated, into limited release for trusted customers, providing a structured way to assess impact before broader rollout.
-	•	Deployed the Dockerized application to AWS EC2 with separate dev/stage/prod environments, adding database indexes and tuning data-heavy queries to keep GraphQL responses performant as the dataset and usage grew.
