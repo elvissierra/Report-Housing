@@ -29,11 +29,6 @@ __date_created__ = "6.11.2025"
 __last_modified__ = "11.6.2025"
 
 
-import pandas as pd
-from report_auto.extract import load_csv
-from report_auto.transform import generate_column_report
-from report_auto.generator import assemble_report, save_report
-from report_auto.utils import normalize_headers
 import os
 import sys
 import subprocess
@@ -42,67 +37,14 @@ import argparse
 from pathlib import Path
 import json
 from typing import Dict, List
+import pandas as pd
+
+# FastAPI imports for API wiring
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from report_auto.api.routes import router as report_router
 
 
-def recipe_to_config_df(recipe: Dict) -> pd.DataFrame:
-    """
-    Translate a SPA JSON `recipe` into the legacy config DataFrame that
-    `generate_column_report` expects.
-
-    The JSON structure mirrors the frontend types:
-      - recipe.rules[] with: column, operation, options{delimiter,separateNodes,rootOnly,value,excludeKeys}, enabled
-      - recipe.insights: {sources[], targets[], threshold}
-
-    Returns
-    -------
-    pd.DataFrame
-        Rows compatible with `transform.generate_column_report`, including
-        INSIGHTS rows consumed by `run_basic_insights`.
-    """
-    rows: List[Dict[str, object]] = []
-    for r in recipe.get("rules", []):
-        if not r.get("enabled", True):
-            continue
-        opts = r.get("options", {}) or {}
-        op = (r.get("operation") or "").strip().lower()
-        row = {
-            "column": r.get("column", ""),
-            "value": (opts.get("value") or ""),
-            "delimiter": (opts.get("delimiter") or ""),
-            "separate_nodes": bool(opts.get("separateNodes")),
-            "root_only": bool(opts.get("rootOnly")),
-            "duplicate": op == "duplicate",
-            "average": op == "average",
-            "clean": op == "clean",
-            # distribution/valueCount become the generic aggregate path
-            "aggregate": op in ("distribution", "valuecount"),
-            "exclude_keys": "|".join(
-                [
-                    str(x).strip()
-                    for x in (opts.get("excludeKeys") or [])
-                    if str(x).strip()
-                ]
-            ),
-        }
-        rows.append(row)
-
-    ins = recipe.get("insights", {}) or {}
-    sources = [s for s in ins.get("sources", []) if str(s).strip()]
-    targets = [t for t in ins.get("targets", []) if str(t).strip()]
-    threshold = ins.get("threshold", None)
-
-    if sources:
-        rows.append({"column": "INSIGHTS SOURCES", "value": "|".join(sources)})
-    if targets:
-        rows.append({"column": "INSIGHTS TARGETS", "value": "|".join(targets)})
-    if threshold is not None and str(threshold).strip() != "":
-        rows.append({"column": "INSIGHTS THRESHOLD", "value": str(threshold)})
-
-    cfg = pd.DataFrame(rows)
-    # Normalize headers now to match downstream expectations
-    from report_auto.utils import normalize_headers
-
-    return normalize_headers(cfg)
 
 
 def _ensure_runtime() -> None:
@@ -152,56 +94,54 @@ def _ensure_runtime() -> None:
 
 _ensure_runtime()
 
-
-def run_auto_report(
-    input_path: str,
-    config_df: pd.DataFrame,
-    output_path: str,
-    multi_sheet: bool = False,
-) -> None:
-    # Handle multi-sheet workbook
-    if multi_sheet and input_path.lower().endswith((".xls", ".xlsx")):
-        # Read all worksheets into a dict of {sheet_name: DataFrame}
-        sheets = pd.read_excel(input_path, sheet_name=None)
-        for sheet_name, df_sheet in sheets.items():
-            # Normalize headers to consistent lower_snake_case to match config driven keys
-            df_sheet = normalize_headers(df_sheet)
-            report_blocks = generate_column_report(df_sheet, config_df)
-            final_report = assemble_report(report_blocks)
-            # Emit an output per worksheet by suffixing the sheet name
-            sheet_output = output_path.replace(".csv", f"_{sheet_name}.csv")
-            save_report(final_report, sheet_output)
-            try:
-                from report_auto.transform import run_basic_insights
-
-                # Insights expect normalized column names; work on a copy to avoid side effects
-                cfg_ins = normalize_headers(config_df.copy())
-                out_dir = os.path.dirname(sheet_output) or "."
-                run_basic_insights(df_sheet, config_df=cfg_ins, output_dir=out_dir)
-            except Exception as e:
-                print(f"[insights] Skipped due to error on sheet '{sheet_name}': {e}")
-        return
-    # Fast path: CSV input or Excel treated as a single sheet
-    ext = os.path.splitext(input_path)[1].lower()
-    if ext in (".xls", ".xlsx"):
-        df = pd.read_excel(input_path)
-        df = normalize_headers(df)
+# Core pipeline imports (after runtime bootstrap so dependencies are available)
+try:
+    from report_auto.core.pipeline import (
+        run_auto_report,
+        run_recipe_workflow,
+        recipe_to_config_df,
+    )
+except ModuleNotFoundError:
+    # Fallback for the current folder layout where 'core.py' is a directory
+    core_dir = Path(__file__).resolve().parent / "report_auto" / "core.py"
+    if core_dir.is_dir():
+        sys.path.append(str(core_dir))
+        from pipeline import (  # type: ignore
+            run_auto_report,
+            run_recipe_workflow,
+            recipe_to_config_df,
+        )
     else:
-        df = load_csv(input_path)
-    report_blocks = generate_column_report(df, config_df)
-    final_report = assemble_report(report_blocks)
-    save_report(final_report, output_path)
-    try:
-        from report_auto.transform import run_basic_insights
+        raise
 
-        # If insights utilities are present, compute correlations/crosstabs alongside the report
-        cfg_ins = normalize_headers(config_df.copy())
-        out_dir = os.path.dirname(output_path) or "."
-        run_basic_insights(df, config_df=cfg_ins, output_dir=out_dir)
-    except Exception as e:
-        print(f"[insights] Skipped due to error: {e}")
+# FastAPI application (for uvicorn / gunicorn)
 
-    # CLI entrypoint: the first two rows of the config CSV hold INPUT/OUTPUT paths;
+app = FastAPI(title="Report Auto API")
+
+# CORS configuration for local UI development
+origins = [
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(report_router, prefix="/api")
+
+# Simple healthcheck endpoint
+@app.get("/health", tags=["health"])
+async def health() -> dict:
+    return {"status": "ok"}
+
+
 
 
 if __name__ == "__main__":
@@ -247,32 +187,13 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"❌ Failed to read recipe JSON: {e}")
             sys.exit(2)
-
-        # Build a config DataFrame compatible with the transform layer
-        config_df = recipe_to_config_df(recipe)
-
-        # Load input dataset (CSV or Excel)
-        in_lower = str(args.input).lower()
-        if in_lower.endswith((".xls", ".xlsx")):
-            df = pd.read_excel(args.input)
-            df = normalize_headers(df)
-        else:
-            df = load_csv(args.input)
-
-        # Generate and save the report
-        report_blocks = generate_column_report(df, config_df)
-        final_report = assemble_report(report_blocks)
-        save_report(final_report, args.output)
-
-        # Optional: insights next to the output
-        try:
-            from report_auto.transform import run_basic_insights
-
-            out_dir = os.path.dirname(args.output) or "."
-            run_basic_insights(df, config_df=config_df, output_dir=out_dir)
-        except Exception as e:
-            print(f"[insights] Skipped due to error: {e}")
-
+        # Delegate recipe execution to the core pipeline (handles CSV/Excel + insights)
+        run_recipe_workflow(
+            recipe,
+            input_path=args.input,
+            output_path=args.output,
+            multi_sheet=args.multi_sheet,
+        )
         sys.exit(0)
 
     # GUI fallback: allow double-click / no-args usage

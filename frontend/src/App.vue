@@ -213,7 +213,21 @@
               :show-ticks="true"
               class="mt-6"
             />
-            <div class="text-caption">threshold: {{ threshold.toFixed(2) }}</div>
+            <div class="d-flex align-center mt-2">
+              <v-switch
+                v-model="insightsEnabled"
+                hide-details
+                inset
+                density="compact"
+                class="switch-sm"
+              />
+              <span class="text-caption ml-2">
+                {{ insightsEnabled ? 'Insights enabled (correlations + crosstabs)' : 'Insights disabled for this recipe' }}
+              </span>
+            </div>
+            <div class="text-caption mt-1">
+              threshold: {{ threshold.toFixed(2) }}
+            </div>
             <v-btn class="mt-3" block @click="applyInsights">Apply</v-btn>
           </v-card-text>
           </v-card>
@@ -221,8 +235,69 @@
           <v-card class="mb-6" variant="outlined" rounded="lg">
             <v-card-title>Actions</v-card-title>
           <v-card-text>
-            <v-btn block class="text-truncate" variant="tonal" color="primary" @click="exportRecipe" prepend-icon="mdi-content-save">Export recipe.json</v-btn>
-            <v-btn block class="mt-2 text-truncate" variant="tonal" @click="openImport" prepend-icon="mdi-file-import">Import recipe.json</v-btn>
+            <v-btn
+              block
+              class="text-truncate"
+              variant="tonal"
+              color="primary"
+              @click="exportRecipe"
+              prepend-icon="mdi-content-save"
+            >
+              Export recipe.json
+            </v-btn>
+            <v-btn
+              block
+              class="mt-2 text-truncate"
+              variant="tonal"
+              @click="openImport"
+              prepend-icon="mdi-file-import"
+            >
+              Import recipe.json
+            </v-btn>
+
+            <v-divider class="my-3" />
+
+            <div class="text-subtitle-2 mb-2">Run report</div>
+            <div class="text-caption mb-2">
+              Downloads a ZIP containing the main report plus correlation and crosstab outputs.
+            </div>
+
+            <input
+              ref="dataFileInput"
+              type="file"
+              accept=".csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+              class="d-none"
+              @change="onDataFileChange"
+            />
+
+            <v-btn
+              block
+              class="text-truncate"
+              variant="tonal"
+              color="primary"
+              prepend-icon="mdi-file-upload"
+              @click="openDataFile"
+            >
+              Select data file
+            </v-btn>
+            <v-btn
+              block
+              class="mt-2 text-truncate"
+              variant="elevated"
+              color="primary"
+              :disabled="!dataFile"
+              prepend-icon="mdi-play-circle"
+              @click="runReport"
+            >
+              Run report
+            </v-btn>
+
+            <div v-if="runError" class="text-caption text-error mt-2">
+              {{ runError }}
+            </div>
+            <div v-if="runStatus" class="text-caption text-success mt-2">
+              {{ runStatus }}
+            </div>
           </v-card-text>
           </v-card>
         </v-col>
@@ -282,12 +357,80 @@ function applyExcludeChips(r: Rule) {
 const sources = ref<string[]>(store.recipe.insights.sources)
 const targets = ref<string[]>(store.recipe.insights.targets)
 const threshold = ref<number>(store.recipe.insights.threshold ?? 0.2)
-function applyInsights() { store.setInsights(sources.value, targets.value, threshold.value) }
+const insightsEnabled = ref<boolean>(!!(sources.value.length || targets.value.length))
+
+function applyInsights() {
+  if (insightsEnabled.value) {
+    // Persist selected sources/targets so backend computes correlations/crosstabs.
+    store.setInsights(sources.value, targets.value, threshold.value)
+  } else {
+    // Clear sources/targets in the recipe so backend skips correlations/crosstabs,
+    // but keep the current threshold value.
+    store.setInsights([], [], threshold.value)
+  }
+}
 
 function openImport() {
   (fileInput.value as HTMLInputElement).click()
 }
+const API_BASE_URL = 'http://localhost:8000'
+
 const fileInput = ref<HTMLInputElement|null>(null)
+const dataFile = ref<File | null>(null)
+const dataFileInput = ref<HTMLInputElement | null>(null)
+const runError = ref<string>('')
+const runStatus = ref<string>('')
+
+function openDataFile() {
+  dataFileInput.value?.click()
+}
+
+function onDataFileChange(e: Event) {
+  const files = (e.target as HTMLInputElement).files
+  dataFile.value = files && files[0] ? files[0] : null
+  runError.value = ''
+  runStatus.value = ''
+}
+
+async function runReport() {
+  if (!dataFile.value) return
+  runError.value = ''
+  runStatus.value = ''
+
+  const formData = new FormData()
+  formData.append('file', dataFile.value)
+  formData.append('recipe', JSON.stringify(store.recipe))
+  formData.append('multi_sheet', 'false')
+
+  try {
+    const resp = await fetch(`${API_BASE_URL}/api/reports/run-recipe-upload`, {
+      method: 'POST',
+      body: formData,
+    })
+
+    if (!resp.ok) {
+      const text = await resp.text()
+      runError.value = `API error (${resp.status}): ${text}`
+      return
+    }
+
+    const blob = await resp.blob()
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    const ts = new Date().toISOString().replace(/[:.]/g, '-')
+    a.href = url
+    a.download = `report_bundle_${ts}.zip`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    window.URL.revokeObjectURL(url)
+
+    runStatus.value = 'Report bundle downloaded (report + insights).'
+  } catch (err) {
+    console.error(err)
+    runError.value = 'Failed to reach backend. See console for details.'
+  }
+}
 function onImport(e: Event) {
   const files = (e.target as HTMLInputElement).files
   if (!files || !files[0]) return

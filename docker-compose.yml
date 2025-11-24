@@ -1,0 +1,30 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: report_auto_backend
+    ports:
+      - "8000:8000"
+    environment:
+      PYTHONUNBUFFERED: "1"
+    # Dev: mount code for live reload
+    volumes:
+      - ./backend:/app
+    # uvicorn --reload is already set in Dockerfile CMD
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: report_auto_frontend
+    ports:
+      - "8080:8080"
+    #volumes:
+    #  - ./frontend:/app
+    depends_on:
+      - backend
+    restart: unless-stopped
