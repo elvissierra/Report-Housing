@@ -29,10 +29,7 @@ __date_created__ = "6.11.2025"
 __last_modified__ = "11.6.2025"
 
 
-import os
 import sys
-import subprocess
-import venv
 import argparse
 from pathlib import Path
 import json
@@ -43,76 +40,12 @@ import pandas as pd
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from report_auto.api.routes import router as report_router
+from report_auto.core.pipeline import (
+    run_auto_report,
+    run_recipe_workflow,
+    recipe_to_config_df,
+)
 
-
-
-
-def _ensure_runtime() -> None:
-    """
-    Zero-setup bootstrap: if pandas/numpy are missing, create a local venv,
-    install requirements, and re-exec into that interpreter.
-    """
-    try:
-        import pandas  # noqa: F401
-        import numpy  # noqa: F401
-
-        return
-    except Exception:
-        pass
-
-    root = Path(__file__).resolve().parent
-    venv_dir = root / ".report_auto_venv"
-    py_bin = venv_dir / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-
-    if not venv_dir.exists():
-        print("⏳ Setting up a local environment (.report_auto_venv)…")
-        venv.EnvBuilder(with_pip=True, clear=False).create(venv_dir)
-
-    # Install minimal deps needed for CSV/Excel processing
-    try:
-        print("⏳ Installing dependencies (pandas, numpy, openpyxl)…")
-        subprocess.check_call([str(py_bin), "-m", "pip", "install", "--upgrade", "pip"])
-        subprocess.check_call(
-            [
-                str(py_bin),
-                "-m",
-                "pip",
-                "install",
-                "pandas>=2.0",
-                "numpy>=1.24",
-                "openpyxl>=3.1",
-            ]
-        )
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Failed to install dependencies: {e}")
-        sys.exit(1)
-
-    # Re-exec this script under the venv's Python, preserving args
-    print("✅ Environment ready. Re-launching…")
-    os.execv(str(py_bin), [str(py_bin), str(Path(__file__).resolve()), *sys.argv[1:]])
-
-
-_ensure_runtime()
-
-# Core pipeline imports (after runtime bootstrap so dependencies are available)
-try:
-    from report_auto.core.pipeline import (
-        run_auto_report,
-        run_recipe_workflow,
-        recipe_to_config_df,
-    )
-except ModuleNotFoundError:
-    # Fallback for the current folder layout where 'core.py' is a directory
-    core_dir = Path(__file__).resolve().parent / "report_auto" / "core.py"
-    if core_dir.is_dir():
-        sys.path.append(str(core_dir))
-        from pipeline import (  # type: ignore
-            run_auto_report,
-            run_recipe_workflow,
-            recipe_to_config_df,
-        )
-    else:
-        raise
 
 # FastAPI application (for uvicorn / gunicorn)
 
