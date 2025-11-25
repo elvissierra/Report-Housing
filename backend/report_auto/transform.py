@@ -1,32 +1,48 @@
 """
-Data Manipulation
+Column-level transforms and insights helpers.
 
+This module implements the core "report config" semantics used by the pipeline.
+Each row in the config DataFrame describes how to summarize a single column.
+
+Core fields
+-----------
 COLUMN
-Is the column in the report to be manipulated.
--------------------------------------
+    Name of the input column to be analyzed/manipulated.
 VALUE
-Is an optional input that will target a single value present within the reporting file.
--------------------------------------
+    Optional value to target within the column. When set, the report emits the
+    count and percentage of rows (or tokens) matching this value.
 AGGREGATE
-To always be set as “yes” unless when blank/NaN value is desired. # Is there a better use case?
--------------------------------------
+    When true, produce a distribution for the column (either per row or per
+    token, depending on SEPARATE_NODES / ROOT_ONLY) instead of a simple listing.
 ROOT ONLY
-When the desired output is at index[0]. # this is for when the desired output is the 1st word or index of a string
--------------------------------------
+    When true, operate on the first token in each cell after splitting on the
+    DELIMITER. Useful when the primary label appears first in a delimited list.
 DELIMITER
-Any character to separate by.
--------------------------------------
+    Delimiter used to split multi-valued cells. If omitted, cells are treated
+    as single values and ROOT_ONLY falls back to the whole cell.
 SEPARATE NODES
-To be used for when there are nested values and alongside DELIMITER.
--------------------------------------
+    When true, split each cell by DELIMITER and aggregate over all tokens
+    across rows (exploded representation).
 DUPLICATE
-To identify duplicates.
--------------------------------------
+    When true, report duplicates for the column (normalized, case-insensitive),
+    including counts and percentages.
 AVERAGE
-To output the average within a column this is float int any other digit base.
--------------------------------------
+    When true, compute the numeric average of the column (optionally handling
+    values with a trailing "%").
 CLEAN
-To clean any marking from a string, this is to only output character
+    When true, emit a "cleaned" listing of values for the column using
+    clean_list_string (keep letters, digits, spaces, commas; normalize spacing).
+
+Exclusion and insights
+----------------------
+EXCLUDE_KEYS
+    Optional pipe-separated list of tokens to subtract from cells before
+    counting or duplicate detection. Exclusions are applied per row and can
+    also be set globally across config rows.
+INSIGHTS SOURCES / INSIGHTS TARGETS / INSIGHTS THRESHOLD
+    Special config rows that define correlation/crosstab directives for
+    run_basic_insights. These are typically generated from the Vue recipe
+    rather than authored by hand.
 """
 
 from __future__ import annotations

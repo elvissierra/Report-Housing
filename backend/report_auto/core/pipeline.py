@@ -3,8 +3,14 @@
 """
 Core orchestration of the reporting pipeline.
 
-This module exposes functions that can be reused from the CLI, tests,
-and future API endpoints.
+This module exposes functions that can be reused from the CLI, tests, and API:
+  - recipe_to_config_df: convert a Vue SPA JSON recipe into a legacy config DataFrame.
+  - run_auto_report: run the report for a given input file + config.
+  - run_recipe_workflow: glue for the recipe.json path used by the API and CLI.
+
+All paths eventually funnel through run_auto_report, which may also invoke
+run_basic_insights to emit Correlation_Results.csv and Crosstabs_Output.csv
+alongside the main report CSV.
 """
 
 from __future__ import annotations

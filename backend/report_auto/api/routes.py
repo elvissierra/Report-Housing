@@ -7,7 +7,7 @@ Exposes HTTP endpoints that orchestrate calls into report_auto.core.pipeline.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import io
 import json

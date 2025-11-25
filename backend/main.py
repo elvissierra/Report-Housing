@@ -1,24 +1,22 @@
 """
-Script to output a report based on Quip configurations
-v4.5: Next step- add visual data
+Entry point for the reporting pipeline (CLI + API).
 
-Orchestrate the end-to-end report build.
-Parameters
-----------
-input_path : str
-    Path to the raw data file. Supports CSV and, when `multi_sheet=True`, Excel.
-config_df : pd.DataFrame
-    Normalized configuration table (rows after the first two INPUT/OUTPUT rows).
-    Column names are expected to be lower_snake_case (the caller normalizes this).
-output_path : str
-    Destination CSV for the assembled report.
-multi_sheet : bool
-    If True and `input_path` is an Excel workbook, process every sheet and emit
-    one report per sheet (suffixing the sheet name).
-Notes
------
-- If `transform.run_basic_insights` is available, it will also write two artifacts:
-  `Correlation_Results.csv` and `Crosstabs_Output.csv` next to the main output.
+This module serves two roles:
+  - ASGI application for FastAPI (used by uvicorn / gunicorn).
+  - Command-line interface for running reports from either:
+    * a legacy CSV configuration file (report_config.csv), or
+    * a JSON recipe emitted by the Vue Designer.
+
+The core orchestration lives in `report_auto.core.pipeline` so it can be reused
+from tests, scripts, and HTTP endpoints.
+
+For each run, the pipeline:
+  - Loads the input dataset (CSV or Excel; supports multi-sheet when requested).
+  - Applies the declarative report configuration to build the main report.
+  - Optionally writes two insights artifacts:
+      Correlation_Results.csv
+      Crosstabs_Output.csv
+    next to the main report output.
 """
 
 __author__ = "Elvis Sierra"
@@ -31,9 +29,7 @@ __last_modified__ = "11.6.2025"
 
 import sys
 import argparse
-from pathlib import Path
 import json
-from typing import Dict, List
 import pandas as pd
 
 # FastAPI imports for API wiring
@@ -43,7 +39,6 @@ from report_auto.api.routes import router as report_router
 from report_auto.core.pipeline import (
     run_auto_report,
     run_recipe_workflow,
-    recipe_to_config_df,
 )
 
 
@@ -129,30 +124,12 @@ if __name__ == "__main__":
         )
         sys.exit(0)
 
-    # GUI fallback: allow double-click / no-args usage
     if not args.config_path:
-        try:
-            import tkinter as tk
-            from tkinter import filedialog, messagebox
-
-            root = tk.Tk()
-            root.withdraw()
-            chosen = filedialog.askopenfilename(
-                title="Select report_config.csv",
-                filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
-            )
-            if not chosen:
-                print("No configuration selected. Exiting.")
-                sys.exit(2)
-            args.config_path = chosen
-            gui_selected = True
-        except Exception:
-            print(
-                "Please provide either --config-path /path/to/report_config.csv or --recipe /path/to/recipe.json with --input and --output."
-            )
-            sys.exit(2)
-    else:
-        gui_selected = False
+        print(
+            "❌ Provide either --config-path /path/to/report_config.csv "
+            "or --recipe /path/to/recipe.json with --input and --output."
+        )
+        sys.exit(2)
 
     # Load only the first two rows to extract INPUT/OUTPUT without parsing the whole config yet
     raw_cfg = pd.read_csv(args.config_path, header=None, nrows=2)
@@ -173,22 +150,6 @@ if __name__ == "__main__":
         raise ValueError("CONFIG ERROR: 'OUTPUT' label not found in second row")
     # The actual config begins on row 3 (index 2); preserve the header row from the file
     config_df = pd.read_csv(args.config_path, header=0, skiprows=2)
-
-    # If launched via GUI and input is an Excel workbook, offer to process all sheets
-    if (
-        gui_selected
-        and str(input_path).lower().endswith((".xls", ".xlsx"))
-        and not args.multi_sheet
-    ):
-        try:
-            from tkinter import messagebox
-
-            if messagebox.askyesno(
-                "Process all sheets?", "Detected an Excel workbook. Process ALL sheets?"
-            ):
-                args.multi_sheet = True
-        except Exception:
-            pass
 
     run_auto_report(
         input_path,

@@ -48,19 +48,6 @@ def ensure_series(obj: pd.Series | pd.DataFrame) -> pd.Series:
     return obj.iloc[:, 0] if isinstance(obj, pd.DataFrame) else obj
 
 
-def make_unique_columns(cols: Iterable[object]) -> List[str]:
-    """
-    Append .1, .2, ... to duplicates; first occurrence stays unsuffixed.
-    """
-    seen: Dict[str, int] = {}
-    out: List[str] = []
-    for c in cols:
-        name = str(c)
-        idx = seen.get(name, 0)
-        new_name = name if idx == 0 else f"{name}.{idx}"
-        seen[name] = idx + 1
-        out.append(new_name)
-    return out
 
 
 def deduplicate_columns(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, List[str]]]:
