@@ -1,0 +1,8 @@
+# requirements-dev.txt
+
+# Include all the production requirements
+-r requirements.txt
+
+# Add development-specific packages
+pytest
+requests # Needed by FastAPI's TestClient

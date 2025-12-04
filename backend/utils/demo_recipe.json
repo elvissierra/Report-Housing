@@ -1,0 +1,107 @@
+{
+  "version": "1",
+  "columnHeaders": [
+    "is_premium_customer",
+    "shipment_delay_days",
+    "channel",
+    "tags",
+    "order_date",
+    "sales_amount",
+    "discount_rate",
+    "marketing_spend",
+    "units_sold",
+    "product_category",
+    "region",
+    "return_flag"
+  ],
+  "rules": [
+    {
+      "id": "gns00qbu",
+      "column": "is_premium_customer",
+      "operation": "distribution",
+      "options": {},
+      "enabled": true
+    },
+    {
+      "id": "ficm0s8t",
+      "column": "shipment_delay_days",
+      "operation": "average",
+      "options": {},
+      "enabled": true
+    },
+    {
+      "id": "25f1s63w",
+      "column": "channel",
+      "operation": "distribution",
+      "options": {},
+      "enabled": true
+    },
+    {
+      "id": "nt0hoe88",
+      "column": "tags",
+      "operation": "duplicate",
+      "options": {},
+      "enabled": true
+    },
+    {
+      "id": "b7i8edps",
+      "column": "order_date",
+      "operation": "median",
+      "options": {},
+      "enabled": true
+    }
+  ],
+  "insights": {
+    "sources": [
+      "product_category",
+      "region",
+      "channel"
+    ],
+    "targets": [
+      "return_flag",
+      "is_premium_customer"
+    ],
+    "threshold": 0.2,
+    "enabled": true
+  },
+  "keyDriver": {
+    "enabled": true,
+    "target_variable": "sales_amount",
+    "feature_columns": [
+      "discount_rate",
+      "units_sold",
+      "product_category",
+      "channel"
+    ],
+    "categorical_features": [
+      "product_category",
+      "channel"
+    ],
+    "include_intercept": true,
+    "p_value_threshold": 0.05
+  },
+  "outlierDetection": {
+    "enabled": true,
+    "target_columns": [
+      "sales_amount",
+      "discount_rate"
+    ],
+    "method": "iqr",
+    "threshold": 1.5
+  },
+  "summaryStats": {
+    "enabled": true,
+    "numeric_columns": [
+      "sales_amount",
+      "discount_rate",
+      "units_sold"
+    ]
+  },
+  "timeSeries": {
+    "enabled": true,
+    "date_column": "order_date",
+    "metric_column": "discount_rate",
+    "frequency": "D",
+    "metric": "sum"
+  }
+}
