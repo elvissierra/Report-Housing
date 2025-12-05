@@ -33,9 +33,22 @@
 
     <v-main class="pt-12 app-background">
       <v-container fluid class="py-8">
-      <v-row>
+        <v-row class="mb-4">
+          <v-col cols="12">
+            <div class="d-flex justify-space-between align-center page-header">
+              <div>
+                <h1 class="text-h5 mb-1">Analysis recipe</h1>
+                <p class="text-body-2 text-medium-emphasis mb-0">
+                  Configure your columns, rules, and insights on the left. Upload your data and run the report on the right.
+                </p>
+              </div>
+            </div>
+          </v-col>
+        </v-row>
+        <v-row>
 
         <v-col cols="12" md="8">
+          <div class="mb-2 section-label">Step 1 · Columns &amp; rules</div>
           <v-card class="mb-6 card-headers" variant="outlined" rounded="lg">
             <v-card-title class="d-flex align-center">
               <span>Column Headers (manual)</span>
@@ -290,7 +303,7 @@
         </v-col>
 
         <!-- Right: Insights & Actions -->
-        <v-col cols="12" md="4">
+        <v-col cols="12" md="4" class="right-column">
         <!-- Correlations -->
         <v-card class="mb-6 card-insights" variant="outlined" rounded="lg">
             <v-card-title class="d-flex align-center">
@@ -843,7 +856,7 @@
             </v-card-text>
           </v-card>
 
-          <v-card class="mb-6 card-actions" variant="outlined" rounded="lg">
+          <v-card class="mb-6 card-actions sticky-card" variant="outlined" rounded="lg">
             <v-card-title>Utilities</v-card-title>
             <v-card-text>
               <div class="text-caption font-weight-medium mb-1">Run & output</div>
@@ -1671,4 +1684,71 @@ for (const block of extraCorrelationBlocks.value) {
   border-color: #f9a8d4 !important;
 }
 
+.app-background {
+  background: linear-gradient(180deg, #f5f5f7 0%, #ffffff 40%, #ffffff 100%);
+}
+
+/* Page header */
+.page-header h1 {
+  font-weight: 600;
+}
+
+.page-header p {
+  max-width: 640px;
+}
+
+/* Card polish – unify look across the main sections */
+.card-headers,
+.card-add-rule,
+.card-rules,
+.card-insights,
+.card-crosstabs,
+.card-advanced,
+.card-understand,
+.card-actions {
+  background-color: #ffffff;
+  border-radius: 12px;
+}
+
+/* Stronger section titles */
+.card-headers .v-card-title,
+.card-add-rule .v-card-title,
+.card-rules .v-card-title,
+.card-insights .v-card-title,
+.card-crosstabs .v-card-title,
+.card-advanced .v-card-title,
+.card-understand .v-card-title,
+.card-actions .v-card-title {
+  font-weight: 500;
+}
+
+/* Right column layout: tidy vertical stack */
+.right-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Make the Utilities card stick on desktop */
+.sticky-card {
+  position: sticky;
+  top: 96px; /* below app bar */
+  z-index: 2;
+}
+
+/* Ensure header textarea can’t be resized */
+.no-resize-ta textarea {
+  resize: none !important;
+}
+
+/* Mobile tweaks – disable sticky so it doesn’t feel broken on small screens */
+@media (max-width: 959px) {
+  .right-column {
+    position: static;
+  }
+
+  .sticky-card {
+    position: static;
+  }
+}
 </style>
