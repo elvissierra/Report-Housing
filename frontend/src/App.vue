@@ -293,10 +293,10 @@
         <v-col cols="12" md="4">
         <!-- Correlations -->
         <v-card class="mb-6 card-insights" variant="outlined" rounded="lg">
-          <v-card-title class="d-flex align-center">
+            <v-card-title class="d-flex align-center">
             <span>Correlations</span>
             <v-tooltip
-              text="Select columns to test for statistical correlation. Numeric pairs use Pearson; categorical pairs use Cramér's V."
+              text="Select columns to test for statistical correlation. Numeric pairs use Pearson; categorical pairs use Cramér's V; mixed numeric/categorical pairs use correlation ratio (eta)."
             >
               <template #activator="{ props }">
                 <v-icon v-bind="props" size="18" class="ml-1">mdi-help-circle-outline</v-icon>
@@ -305,14 +305,26 @@
           </v-card-title>
           <v-card-text>
             <v-combobox
-              v-model="correlationColumns"
+              v-model="correlationSources"
               :items="store.recipe.columnHeaders"
-              label="correlation columns"
+              label="source columns"
               multiple
               chips
               closable-chips
               clearable
               hide-details
+              density="comfortable"
+            />
+            <v-combobox
+              v-model="correlationTargets"
+              :items="store.recipe.columnHeaders"
+              label="target columns"
+              multiple
+              chips
+              closable-chips
+              clearable
+              hide-details
+              class="mt-2"
               density="comfortable"
             />
             <v-slider
@@ -335,6 +347,89 @@
                 hide-details
               />
             </div>
+            <v-divider class="my-3" />
+
+              <div class="mt-1">
+                <div class="d-flex align-center justify-space-between mb-1">
+                  <span class="text-caption font-weight-medium">Additional correlation blocks</span>
+                  <v-btn
+                    size="x-small"
+                    variant="text"
+                    prepend-icon="mdi-plus"
+                    @click="addCorrelationBlock"
+                  >
+                    Add
+                  </v-btn>
+                </div>
+              
+                <v-card
+                  v-for="block in extraCorrelationBlocks"
+                  :key="block.id"
+                  class="mb-2 pa-2"
+                  variant="outlined"
+                  rounded="lg"
+                >
+                  <v-row dense>
+                    <v-col cols="12">
+                      <v-combobox
+                        v-model="block.sources"
+                        :items="store.recipe.columnHeaders"
+                        label="source columns"
+                        multiple
+                        chips
+                        closable-chips
+                        clearable
+                        hide-details
+                        density="comfortable"
+                      />
+                    </v-col>
+                    <v-col cols="12">
+                      <v-combobox
+                        v-model="block.targets"
+                        :items="store.recipe.columnHeaders"
+                        label="target columns"
+                        multiple
+                        chips
+                        closable-chips
+                        clearable
+                        hide-details
+                        class="mt-2"
+                        density="comfortable"
+                      />
+                    </v-col>
+                    <v-col cols="12">
+                      <v-slider
+                        v-model="block.threshold"
+                        :min="0"
+                        :max="1"
+                        :step="0.05"
+                        class="mt-2"
+                      />
+                      <div class="text-caption">
+                        threshold: {{ block.threshold.toFixed(2) }}
+                      </div>
+                    </v-col>
+                    <v-col cols="12" class="d-flex align-center justify-space-between">
+                      <div class="d-flex align-center">
+                        <span class="text-caption mr-2">Enabled</span>
+                        <v-switch
+                          v-model="block.enabled"
+                          inset
+                          density="compact"
+                          class="switch-sm"
+                          hide-details
+                        />
+                      </div>
+                      <v-btn
+                        icon="mdi-delete"
+                        variant="text"
+                        size="small"
+                        @click="removeCorrelationBlock(block.id)"
+                      />
+                    </v-col>
+                  </v-row>
+                </v-card>
+              </div>
           </v-card-text>
         </v-card>
         
@@ -384,6 +479,76 @@
                 hide-details
               />
             </div>
+            <v-divider class="my-3" />
+
+              <div class="mt-1">
+                <div class="d-flex align-center justify-space-between mb-1">
+                  <span class="text-caption font-weight-medium">Additional crosstab blocks</span>
+                  <v-btn
+                    size="x-small"
+                    variant="text"
+                    prepend-icon="mdi-plus"
+                    @click="addCrosstabBlock"
+                  >
+                    Add
+                  </v-btn>
+                </div>
+              
+                <v-card
+                  v-for="block in extraCrosstabBlocks"
+                  :key="block.id"
+                  class="mb-2 pa-2"
+                  variant="outlined"
+                  rounded="lg"
+                >
+                  <v-row dense>
+                    <v-col cols="12" md="6">
+                      <v-combobox
+                        v-model="block.sources"
+                        :items="store.recipe.columnHeaders"
+                        label="sources"
+                        multiple
+                        chips
+                        closable-chips
+                        clearable
+                        hide-details
+                        density="comfortable"
+                      />
+                    </v-col>
+                    <v-col cols="12" md="6">
+                      <v-combobox
+                        v-model="block.targets"
+                        :items="store.recipe.columnHeaders"
+                        label="targets"
+                        multiple
+                        chips
+                        closable-chips
+                        clearable
+                        hide-details
+                        density="comfortable"
+                      />
+                    </v-col>
+                    <v-col cols="12" class="d-flex align-center justify-space-between mt-2">
+                      <div class="d-flex align-center">
+                        <span class="text-caption mr-2">Enabled</span>
+                        <v-switch
+                          v-model="block.enabled"
+                          inset
+                          density="compact"
+                          class="switch-sm"
+                          hide-details
+                        />
+                      </div>
+                      <v-btn
+                        icon="mdi-delete"
+                        variant="text"
+                        size="small"
+                        @click="removeCrosstabBlock(block.id)"
+                      />
+                    </v-col>
+                  </v-row>
+                </v-card>
+              </div>
           </v-card-text>
         </v-card>
 
@@ -631,7 +796,7 @@
             </v-card-text>
           </v-card>
 
-                    <!-- Understand the Logic (Quick Examples) -->
+          <!-- Understand the Logic (Quick Examples) -->
           <v-card class="mb-6 card-understand" variant="outlined" rounded="lg">
             <v-card-title class="d-flex align-center">
               <span>Understand the logic</span>
@@ -644,6 +809,17 @@
               </v-tooltip>
             </v-card-title>
             <v-card-text class="text-caption">
+              <div class="mb-2">
+                <strong>Correlations</strong> – “How strongly do two columns move together?”
+                <br />
+                Example: <code>units_sold</code> vs <code>marketing_spend</code> (numeric–numeric, Pearson) or
+                <code>units_sold</code> vs <code>product_category</code> (numeric–categorical, correlation ratio η).
+              </div>
+              <div class="mb-2">
+                <strong>Crosstabs</strong> – “How does the mix of categories change across another field?”
+                <br />
+                Example: sources = <code>product_category</code>, targets = <code>region</code> to see category share by region.
+              </div>
               <div class="mb-2">
                 <strong>Key Drivers</strong> – “Which columns help explain my main metric?”
                 <br />
@@ -668,96 +844,101 @@
           </v-card>
 
           <v-card class="mb-6 card-actions" variant="outlined" rounded="lg">
-            <v-card-title>Actions</v-card-title>
-          <v-card-text>
-            <v-text-field
-              v-model="bundleName"
-              label="Output Analysis Title"
-              placeholder="generated_report"
-              density="comfortable"
-              variant="outlined"
-              hide-details
-              class="mb-3"
-            />
-            <v-file-input
-              v-model="inputFile"
-              label="Data file (CSV)"
-              accept=".csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
-              density="comfortable"
-              variant="outlined"
-              hide-details
-            />
+            <v-card-title>Utilities</v-card-title>
+            <v-card-text>
+              <div class="text-caption font-weight-medium mb-1">Run & output</div>
+              <v-text-field
+                v-model="bundleName"
+                label="Output Analysis Title"
+                placeholder="generated_report"
+                density="comfortable"
+                variant="outlined"
+                hide-details
+                class="mb-3"
+              />
+              <v-file-input
+                v-model="inputFile"
+                label="Data file (CSV)"
+                accept=".csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                density="comfortable"
+                variant="outlined"
+                hide-details
+              />
 
-            <v-btn
-              block
-              class="mt-3 text-truncate"
-              variant="flat"
-              color="primary"
-              :loading="isRunning"
-              :disabled="isRunning || !inputFile"
-              prepend-icon="mdi-play-circle"
-              @click="runReport"
-            >
-              Run report
-            </v-btn>
+              <v-btn
+                block
+                class="mt-3 text-truncate"
+                variant="flat"
+                color="primary"
+                :loading="isRunning"
+                :disabled="isRunning || !inputFile"
+                prepend-icon="mdi-play-circle"
+                @click="runReport"
+              >
+                Run report
+              </v-btn>
 
-            <v-divider class="my-4" />
+              <v-divider class="my-4" />
 
-            <v-btn
-              block
-              class="text-truncate"
-              variant="tonal"
-              color="primary"
-              @click="exportRecipe"
-              prepend-icon="mdi-content-save"
-            >
-              Export Recipe
-            </v-btn>
-            <v-btn
-              block
-              class="mt-2 text-truncate"
-              variant="tonal"
-              @click="openImport"
-              prepend-icon="mdi-file-import"
-            >
-              Import Recipe
-            </v-btn>
+              <div class="text-caption font-weight-medium mb-1">Recipe management</div>
+              <v-btn
+                block
+                class="text-truncate"
+                variant="tonal"
+                color="primary"
+                @click="exportRecipe"
+                prepend-icon="mdi-content-save"
+              >
+                Export Recipe
+              </v-btn>
+              <v-btn
+                block
+                class="mt-2 text-truncate"
+                variant="tonal"
+                @click="openImport"
+                prepend-icon="mdi-file-import"
+              >
+                Import Recipe
+              </v-btn>
 
-            <v-btn
-              block
-              class="mt-2 text-truncate"
-              variant="text"
-              color="error"
-              prepend-icon="mdi-broom"
-              @click="clearRecipe"
-            >
-              Clear current setup
-            </v-btn>
+              <v-btn
+                block
+                class="mt-2 text-truncate"
+                variant="text"
+                color="error"
+                prepend-icon="mdi-broom"
+                @click="clearRecipe"
+              >
+                Clear current setup
+              </v-btn>
 
-            <v-btn
-              block
-              class="mt-2 text-truncate"
-              variant="outlined"
-              prepend-icon="mdi-book-open-page-variant"
-              @click="openDefinitionsDialog"
-            >
-              View logic reference
-            </v-btn>
+              <v-divider class="my-4" />
 
-            <v-btn
-              block
-              class="mt-2 text-truncate"
-              variant="text"
-              prepend-icon="mdi-file-document-outline"
-              @click="downloadDefinitions"
-            >
-              Download logic reference (.txt)
-            </v-btn>
+              <div class="text-caption font-weight-medium mb-1">Reference</div>
+              <v-btn
+                block
+                class="mt-2 text-truncate"
+                variant="outlined"
+                prepend-icon="mdi-book-open-page-variant"
+                @click="openDefinitionsDialog"
+              >
+                View logic reference
+              </v-btn>
 
-            <div v-if="errorMessage" class="mt-2 text-caption text-error">
-              {{ errorMessage }}
-            </div>
-          </v-card-text>
+              <v-btn
+                block
+                class="mt-2 text-truncate"
+                variant="text"
+                prepend-icon="mdi-file-document-outline"
+                @click="downloadDefinitions"
+              >
+                Download logic reference (.txt)
+              </v-btn>
+
+              <div v-if="errorMessage" class="mt-2 text-caption text-error">
+                {{ errorMessage }}
+              </div>
+            </v-card-text>
           </v-card>
         </v-col>
       </v-row>
@@ -790,10 +971,26 @@ import {
   type AnalysisRequest,
   type CustomAnalysis,
   type CrosstabAnalysis,
+  type CorrelationAnalysis,
   type Filter,
   type Transformation,
 } from './services/api'
 import axios from 'axios'
+
+interface CorrelationBlockConfig {
+  id: string
+  sources: string[]
+  targets: string[]
+  threshold: number
+  enabled: boolean
+}
+
+interface CrosstabBlockConfig {
+  id: string
+  sources: string[]
+  targets: string[]
+  enabled: boolean
+}
 
 const FEEDBACK_LINK: string =
   import.meta.env.VITE_FEEDBACK_LINK ||
@@ -903,7 +1100,8 @@ function applyExcludeChips(r: Rule) {
 }
 
 // Correlations
-const correlationColumns = ref<string[]>(store.recipe.insights.sources)
+const correlationSources = ref<string[]>(store.recipe.insights.sources ?? [])
+const correlationTargets = ref<string[]>(store.recipe.insights.targets ?? [])
 const correlationThreshold = ref<number>(store.recipe.insights.threshold ?? 0.2)
 const correlationEnabled = ref<boolean>(store.recipe.insights.enabled ?? true)
 
@@ -911,6 +1109,9 @@ const correlationEnabled = ref<boolean>(store.recipe.insights.enabled ?? true)
 const crosstabSources = ref<string[]>(store.recipe.insights.crosstabSources ?? [])
 const crosstabTargets = ref<string[]>(store.recipe.insights.crosstabTargets ?? [])
 const crosstabEnabled = ref<boolean>(store.recipe.insights.crosstabEnabled ?? true)
+
+const extraCorrelationBlocks = ref<CorrelationBlockConfig[]>([])
+const extraCrosstabBlocks = ref<CrosstabBlockConfig[]>([])
 
 function openImport() {
   (fileInput.value as HTMLInputElement).click()
@@ -927,6 +1128,33 @@ function onImport(e: Event) {
   reader.readAsText(files[0])
 }
 function exportRecipe() { store.exportRecipe() }
+
+function addCorrelationBlock() {
+  extraCorrelationBlocks.value.push({
+    id: cryptoRandom(),
+    sources: [],
+    targets: [],
+    threshold: correlationThreshold.value,
+    enabled: true,
+  })
+}
+
+function removeCorrelationBlock(id: string) {
+  extraCorrelationBlocks.value = extraCorrelationBlocks.value.filter((b) => b.id !== id)
+}
+
+function addCrosstabBlock() {
+  extraCrosstabBlocks.value.push({
+    id: cryptoRandom(),
+    sources: [],
+    targets: [],
+    enabled: true,
+  })
+}
+
+function removeCrosstabBlock(id: string) {
+  extraCrosstabBlocks.value = extraCrosstabBlocks.value.filter((b) => b.id !== id)
+}
 
 
 function defaultRuleOptions() {
@@ -1063,12 +1291,15 @@ function clearRecipe() {
   if (typeof (store as any).resetRecipe === 'function') {
     (store as any).resetRecipe()
     headersText.value = ''
-    correlationColumns.value = []
+    correlationSources.value = []
+    correlationTargets.value = []
     correlationThreshold.value = store.recipe.insights.threshold ?? 0.2
     correlationEnabled.value = store.recipe.insights.enabled ?? true
     crosstabSources.value = []
     crosstabTargets.value = []
     crosstabEnabled.value = store.recipe.insights.crosstabEnabled ?? true
+    extraCorrelationBlocks.value = []
+    extraCrosstabBlocks.value = []
     bundleName.value = 'generated_report'
     inputFile.value = null
     errorMessage.value = null
@@ -1161,34 +1392,67 @@ async function runReport() {
       return step
     })
 
-  store.setInsights(
-    correlationColumns.value,
-    // For correlations, we only need a single set; store in both so the union is trivial.
-    correlationColumns.value,
-    correlationThreshold.value,
-    correlationEnabled.value,
-    crosstabSources.value,
-    crosstabTargets.value,
-    crosstabEnabled.value,
-  )
-  const insight = store.recipe.insights
-    
-  const corrCols = Array.from(
-    new Set([...insight.sources, ...insight.targets]),
-  ).filter(Boolean)
+store.setInsights(
+  correlationSources.value,
+  correlationTargets.value,
+  correlationThreshold.value,
+  correlationEnabled.value,
+  crosstabSources.value,
+  crosstabTargets.value,
+  crosstabEnabled.value,
+)
+const insight = store.recipe.insights
 
-  const analysisSteps: AnalysisRequest['analysis_steps'] = [...customSteps]
+const analysisSteps: AnalysisRequest['analysis_steps'] = [...customSteps]
 
-  if (insight.enabled && corrCols.length >= 2) {
-    analysisSteps.push({
-      type: 'correlation',
-      output_name: 'Correlation_Results',
-      filters: [],
-      group_by: [],
-      columns: corrCols,
-      threshold: insight.threshold ?? 0.2,
-    })
+// Build correlation steps per (source, target) pair so each requested
+// relationship is explicitly returned.
+if (insight.enabled) {
+  const srcs = (insight.sources || []).filter(Boolean)
+  const tgts = (insight.targets || []).filter(Boolean)
+
+  const correlationSteps: CorrelationAnalysis[] = []
+
+  if (srcs.length && tgts.length) {
+    for (const src of srcs) {
+      for (const tgt of tgts) {
+        if (!src || !tgt || src === tgt) continue
+        correlationSteps.push({
+          type: 'correlation',
+          output_name: `Correlation: ${src} vs ${tgt}`,
+          filters: [],
+          group_by: [],
+          columns: [src, tgt],
+          threshold: insight.threshold ?? 0.2,
+        })
+      }
+    }
   }
+
+  analysisSteps.push(...correlationSteps)
+}
+
+for (const block of extraCorrelationBlocks.value) {
+  if (!block.enabled) continue
+
+  const srcs = (block.sources || []).filter(Boolean)
+  const tgts = (block.targets || []).filter(Boolean)
+  if (!srcs.length || !tgts.length) continue
+
+  for (const src of srcs) {
+    for (const tgt of tgts) {
+      if (!src || !tgt || src === tgt) continue
+      analysisSteps.push({
+        type: 'correlation',
+        output_name: `Correlation (extra): ${src} vs ${tgt}`,
+        filters: [],
+        group_by: [],
+        columns: [src, tgt],
+        threshold: block.threshold ?? insight.threshold ?? 0.2,
+      })
+    }
+  }
+}
 
   if (
     insight.crosstabEnabled &&
@@ -1196,7 +1460,7 @@ async function runReport() {
     insight.crosstabTargets.length > 0
   ) {
     const crosstabSteps: CrosstabAnalysis[] = []
-  
+
     for (const src of insight.crosstabSources) {
       for (const tgt of insight.crosstabTargets) {
         if (!src || !tgt || src === tgt) continue
@@ -1212,9 +1476,38 @@ async function runReport() {
         })
       }
     }
-  
+
     analysisSteps.push(...crosstabSteps)
   }
+
+  for (const block of extraCrosstabBlocks.value) {
+    // Respect global switch but do not depend on main sources/targets.
+    if (!insight.crosstabEnabled) continue
+    if (!block.enabled || block.sources.length === 0 || block.targets.length === 0) continue
+
+    const srcs = block.sources.filter(Boolean)
+    const tgts = block.targets.filter(Boolean)
+
+    const extraCrosstabSteps: CrosstabAnalysis[] = []
+
+    for (const src of srcs) {
+      for (const tgt of tgts) {
+        if (!src || !tgt || src === tgt) continue
+        extraCrosstabSteps.push({
+          type: 'crosstab',
+          output_name: `Crosstab: ${src} vs ${tgt}`,
+          filters: [],
+          group_by: [],
+          index_column: src,
+          column_to_compare: tgt,
+          column_transformations: [],
+          show_percentages: 'none',
+        })
+      }
+    }
+
+    analysisSteps.push(...extraCrosstabSteps)
+}
 
   // --- Advanced Analyses: Key Drivers, Outliers, Summary Stats, Time Series ---
   const kdConfig = store.recipe.keyDriver

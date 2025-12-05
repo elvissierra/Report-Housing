@@ -1,8 +1,43 @@
+
 import pandas as pd
 import numpy as np
 import itertools
 import schemas
 from .helpers import prepare_data_groups, format_group_name, cramers_v, is_categorical
+
+
+# Helper to compute correlation ratio (eta) for categorical–numeric pairs
+def correlation_ratio(categories: pd.Series, values: pd.Series) -> float:
+    """
+    Computes the correlation ratio (eta) between a categorical and numeric series.
+
+    Eta measures how much of the variance in the numeric variable is explained
+    by differences between the category means (0 = no relationship, 1 = perfect).
+    """
+    df = pd.DataFrame({"cat": categories, "val": pd.to_numeric(values, errors="coerce")}).dropna()
+    if df.empty:
+        return float("nan")
+
+    overall_mean = df["val"].mean()
+    if np.isnan(overall_mean):
+        return float("nan")
+
+    groups = df.groupby("cat")["val"]
+    ss_between = 0.0
+    for _, g in groups:
+        if g.empty:
+            continue
+        n_g = float(len(g))
+        mean_g = g.mean()
+        ss_between += n_g * (mean_g - overall_mean) ** 2
+
+    ss_total = float(((df["val"] - overall_mean) ** 2).sum())
+    if ss_total <= 0.0:
+        return float("nan")
+
+    eta = np.sqrt(ss_between / ss_total)
+    return float(eta)
+
 
 
 def run(df: pd.DataFrame, step: schemas.CorrelationAnalysis) -> schemas.ReportBlock:
@@ -31,37 +66,37 @@ def run(df: pd.DataFrame, step: schemas.CorrelationAnalysis) -> schemas.ReportBl
             is_col2_cat = is_categorical(aligned_col2)
 
             if not is_col1_cat and not is_col2_cat:
+                # Numeric–numeric: Pearson
                 corr_type, corr_val = "Pearson", aligned_col1.corr(aligned_col2)
-                if not (pd.isna(corr_val) or abs(corr_val) < step.threshold):
-                    correlation_records.append(
-                        {
-                            "Group": formatted_group_name,
-                            "Column 1": col1_name,
-                            "Column 2": col2_name,
-                            "Correlation Type": corr_type,
-                            "Correlation Value": corr_val,
-                        }
-                    )
             elif is_col1_cat and is_col2_cat:
+                # Categorical–categorical: Cramér's V
                 corr_type, corr_val = (
                     "Cramér's V",
                     cramers_v(aligned_col1, aligned_col2),
                 )
-                if not (pd.isna(corr_val) or abs(corr_val) < step.threshold):
-                    correlation_records.append(
-                        {
-                            "Group": formatted_group_name,
-                            "Column 1": col1_name,
-                            "Column 2": col2_name,
-                            "Correlation Type": corr_type,
-                            "Correlation Value": corr_val,
-                        }
-                    )
             else:
-                # Mixed types (one numeric, one categorical) are not summarized by a single
-                # correlation coefficient in this table. We skip these pairs here and let
-                # the Crosstab analyses handle them instead.
+                # Mixed types (one categorical, one numeric): use correlation ratio (eta)
+                if is_col1_cat and not is_col2_cat:
+                    cat, num = aligned_col1, aligned_col2
+                elif is_col2_cat and not is_col1_cat:
+                    cat, num = aligned_col2, aligned_col1
+                else:
+                    # If we somehow can't classify, skip this pair
+                    continue
+                corr_type, corr_val = "Correlation ratio (eta)", correlation_ratio(cat, num)
+
+            if pd.isna(corr_val) or abs(corr_val) < step.threshold:
                 continue
+
+            correlation_records.append(
+                {
+                    "Group": formatted_group_name,
+                    "Column 1": col1_name,
+                    "Column 2": col2_name,
+                    "Correlation Type": corr_type,
+                    "Correlation Value": corr_val,
+                }
+            )
 
     if not correlation_records:
         final_df = pd.DataFrame(
