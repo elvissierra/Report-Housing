@@ -179,59 +179,79 @@
         <v-col cols="12" md="8">
           <div class="mb-2 section-label">Step 2 · Columns &amp; rules</div>
           <v-card class="mb-6 card-headers" variant="outlined" rounded="lg">
-            <v-card-title class="d-flex align-center">
-              <span>Column Headers (manual)</span>
-              <v-tooltip
-                text="These are the column names used throughout the analysis. Paste or type them here so rules, insights, and advanced analyses line up with your data file."
+            <v-card-title class="d-flex align-center justify-space-between">
+              <div class="d-flex align-center">
+                <span>Active headers</span>
+                <v-tooltip
+                  text="These are the column names used throughout the analysis. Paste or type them here so rules, insights, and advanced analyses line up with your data file."
+                >
+                  <template #activator="{ props }">
+                    <v-icon v-bind="props" size="18" class="ml-1">mdi-help-circle-outline</v-icon>
+                  </template>
+                </v-tooltip>
+              </div>
+              <v-btn
+                size="x-small"
+                variant="text"
+                class="text-none"
+                prepend-icon="mdi-pencil-outline"
+                @click="showManualHeaders = !showManualHeaders"
               >
-                <template #activator="{ props }">
-                  <v-icon v-bind="props" size="18" class="ml-1">mdi-help-circle-outline</v-icon>
-                </template>
-              </v-tooltip>
+                {{ showManualHeaders ? 'Hide manual editor' : 'Edit headers manually' }}
+              </v-btn>
             </v-card-title>
             <v-card-text class="py-3">
-              <v-textarea
-                v-model="headersText"
-                label="Known headers"
-                placeholder="One per line or comma-separated"
-                variant="outlined"
-                rows="1"
-                hide-details
-                clearable
-                density="compact"
-                no-resize
-                class="my-0 no-resize-ta"
-                style="max-height: 48px;"
-              />
-              <div class="d-flex align-center mt-1">
-                <div class="text-caption">
-                  Paste or type your column headers, then click Apply. The active headers will appear below as tags.
-                </div>
-                <v-spacer />
-                <v-btn
-                  variant="tonal"
-                  color="primary"
-                  size="small"
-                  @click="applyHeaders"
-                >
-                  Apply
-                </v-btn>
-              </div>
+
               <div
                 v-if="store.recipe.columnHeaders.length"
-                class="mt-2 d-flex flex-wrap ga-1"
+                class="mt-1 d-flex flex-wrap ga-1"
               >
                 <v-chip
-                  v-for="h in store.recipe.columnHeaders"
+                  v-for="(h, index) in store.recipe.columnHeaders"
                   :key="h"
                   size="small"
-                  color="primary"
-                  variant="tonal"
-                  class="ma-1 text-capitalize"
+                  variant="flat"
+                  class="ma-1 header-chip"
+                  :style="headerChipStyle(index)"
                 >
-                  {{ h }}
+                  {{ formatHeaderLabel(h) }}
                 </v-chip>
               </div>
+              <div v-else class="text-caption text-medium-emphasis mt-1">
+                No headers detected yet. Use “Import headers” in Utilities or open the manual editor.
+              </div>
+
+              <v-expand-transition>
+                <div v-show="showManualHeaders" class="mt-4">
+                  <v-textarea
+                    v-model="headersText"
+                    label="Known headers"
+                    placeholder="One per line or comma-separated"
+                    variant="outlined"
+                    rows="1"
+                    hide-details
+                    clearable
+                    density="compact"
+                    no-resize
+                    class="my-0 no-resize-ta"
+                    style="max-height: 48px;"
+                  />
+                  <div class="d-flex align-center mt-1">
+                    <div class="text-caption">
+                      Paste or type your column headers, then click Apply. The active headers will appear below as tags.
+                    </div>
+                    <v-spacer />
+                    <v-btn
+                      variant="tonal"
+                      color="primary"
+                      size="small"
+                      @click="applyHeaders"
+                    >
+                      Apply
+                    </v-btn>
+                  </div>
+                </div>
+              </v-expand-transition>
             </v-card-text>
           </v-card>
           <v-card class="mb-6 card-add-rule" variant="outlined" rounded="lg">
@@ -1106,7 +1126,25 @@ function normalizeHeaderName(name: string): string {
     .replace(/^_+|_+$/g, '')
 }
 
+function formatHeaderLabel(name: string): string {
+  // Convert internal header keys like "order_date" to "Order date"
+  const withSpaces = name.replace(/_/g, ' ').trim()
+  if (!withSpaces) return ''
+  return withSpaces
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
 const headersText = ref(store.recipe.columnHeaders.join('\n'))
+
+const showManualHeaders = ref(false)
+
+const headerChipPalette = ['#fef9c3', '#fef3c7', '#fde68a', '#facc15', '#eab308']
+const headerChipStyle = (index: number) => ({
+  backgroundColor: headerChipPalette[index % headerChipPalette.length],
+  color: '#1f2937',
+})
+
 function applyHeaders() {
   const parts = headersText.value
     .split(/[\n,]+/)
@@ -1857,8 +1895,6 @@ for (const block of extraCorrelationBlocks.value) {
   font-weight: 500;
 }
 
-
-
 /* Mobile tweaks – disable sticky so it doesn’t feel broken on small screens */
 @media (max-width: 959px) {
   .right-column {
@@ -1876,5 +1912,15 @@ for (const block of extraCorrelationBlocks.value) {
   letter-spacing: 0;
   font-weight: 600;
   padding-inline: 20px;
+}
+
+.header-chip {
+  font-weight: 500;
+  border-radius: 999px;
+}
+
+/* Ensure small text buttons like 'Edit headers manually’ don’t go all-caps */
+.text-none {
+  text-transform: none !important;
 }
 </style>

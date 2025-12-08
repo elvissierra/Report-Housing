@@ -4,14 +4,14 @@ from fastapi.responses import FileResponse, JSONResponse
 import os
 from routers import reports
 
-# --- Application Setup ---
 app = FastAPI(title="Report Auto API")
 
-# --- CORS Middleware ---
-origins = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-]
+# --- CORS from env ---
+raw_origins = os.getenv(
+    "CORS_ORIGINS",
+    "http://localhost:5173,http://127.0.0.1:5173",
+)
+origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
 
 app.add_middleware(
     CORSMiddleware,
@@ -21,12 +21,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- API Routers ---
-app.include_router(reports.router, prefix="/api")
-
-# --- Static File Serving (The Vue App) ---
-
-STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")
+# --- Static dir from env, defaulting to current layout ---
+DEFAULT_STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")
+STATIC_DIR = os.path.abspath(os.getenv("STATIC_DIR", DEFAULT_STATIC_DIR))
 
 # Mount the static assets (JS, CSS files)
 # app.mount(
