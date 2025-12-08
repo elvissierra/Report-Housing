@@ -59,8 +59,8 @@ def run(df: pd.DataFrame, step: schemas.TimeSeriesAnalysis) -> schemas.ReportBlo
             missing_cols.append(step.metric_column)
 
         if missing_cols:
-            error_message = (
-                "Missing required columns for time series: " + ", ".join(missing_cols)
+            error_message = "Missing required columns for time series: " + ", ".join(
+                missing_cols
             )
             logger.warning("Group '%s': %s", formatted_group_name, error_message)
             error_df = pd.DataFrame(
@@ -93,9 +93,7 @@ def run(df: pd.DataFrame, step: schemas.TimeSeriesAnalysis) -> schemas.ReportBlo
                 error_message = (
                     "No valid data after date/metric conversion and dropping NaNs."
                 )
-                logger.info(
-                    "Group '%s': %s", formatted_group_name, error_message
-                )
+                logger.info("Group '%s': %s", formatted_group_name, error_message)
                 error_df = pd.DataFrame(
                     [
                         {
@@ -124,9 +122,7 @@ def run(df: pd.DataFrame, step: schemas.TimeSeriesAnalysis) -> schemas.ReportBlo
                 error_message = (
                     "Time series result is empty after resampling and aggregation."
                 )
-                logger.info(
-                    "Group '%s': %s", formatted_group_name, error_message
-                )
+                logger.info("Group '%s': %s", formatted_group_name, error_message)
                 error_df = pd.DataFrame(
                     [
                         {

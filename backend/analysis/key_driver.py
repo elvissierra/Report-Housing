@@ -30,7 +30,9 @@ def run(df: pd.DataFrame, step: schemas.KeyDriverAnalysis) -> schemas.ReportBloc
 
         # Separate numeric and categorical features based on the schema
         categorical_features = step.categorical_features or []
-        numeric_features = [f for f in step.feature_columns if f not in categorical_features]
+        numeric_features = [
+            f for f in step.feature_columns if f not in categorical_features
+        ]
 
         # One-hot encode the specified categorical features
         if categorical_features:
@@ -139,8 +141,6 @@ def run(df: pd.DataFrame, step: schemas.KeyDriverAnalysis) -> schemas.ReportBloc
                 ["Group", "Feature", "Coefficient", "Standard Error", "P-value"]
             ]
         else:
-            final_df = final_df[
-                ["Feature", "Coefficient", "Standard Error", "P-value"]
-            ]
+            final_df = final_df[["Feature", "Coefficient", "Standard Error", "P-value"]]
 
     return schemas.ReportBlock(title=step.output_name, data=final_df)

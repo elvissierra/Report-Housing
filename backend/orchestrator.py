@@ -37,7 +37,6 @@ def run_dynamic_analysis(
         try:
             handler = ANALYSIS_HANDLERS.get(step.type)
             if handler:
-                
                 yield handler(df, step)
             else:
                 error_df = pd.DataFrame(
@@ -48,7 +47,6 @@ def run_dynamic_analysis(
                 )
 
         except Exception as e:
-
             logging.error(
                 f"Error processing step '{step.output_name}': {e}", exc_info=True
             )

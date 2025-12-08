@@ -38,7 +38,9 @@ def prepare_data_groups(df: pd.DataFrame, step: schemas.BaseAnalysis) -> list:
             elif f.operator == "not_in":
                 filtered_df = filtered_df[~col.isin(f.value)]
             elif f.operator == "contains":
-                filtered_df = filtered_df[col.astype(str).str.contains(f.value, na=False)]
+                filtered_df = filtered_df[
+                    col.astype(str).str.contains(f.value, na=False)
+                ]
 
     if step.group_by:
         return filtered_df.groupby(step.group_by, dropna=False)
@@ -64,7 +66,9 @@ def apply_transformations(
     Applies a series of transformations and then post-transformation filters to a Series.
     """
     if not isinstance(series, pd.Series):
-        raise TypeError(f"apply_transformations expects a pandas Series, got {type(series)}")
+        raise TypeError(
+            f"apply_transformations expects a pandas Series, got {type(series)}"
+        )
 
     s = series.copy()
 

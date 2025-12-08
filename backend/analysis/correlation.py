@@ -1,4 +1,3 @@
-
 import pandas as pd
 import numpy as np
 import itertools
@@ -14,7 +13,9 @@ def correlation_ratio(categories: pd.Series, values: pd.Series) -> float:
     Eta measures how much of the variance in the numeric variable is explained
     by differences between the category means (0 = no relationship, 1 = perfect).
     """
-    df = pd.DataFrame({"cat": categories, "val": pd.to_numeric(values, errors="coerce")}).dropna()
+    df = pd.DataFrame(
+        {"cat": categories, "val": pd.to_numeric(values, errors="coerce")}
+    ).dropna()
     if df.empty:
         return float("nan")
 
@@ -37,7 +38,6 @@ def correlation_ratio(categories: pd.Series, values: pd.Series) -> float:
 
     eta = np.sqrt(ss_between / ss_total)
     return float(eta)
-
 
 
 def run(df: pd.DataFrame, step: schemas.CorrelationAnalysis) -> schemas.ReportBlock:
@@ -83,7 +83,10 @@ def run(df: pd.DataFrame, step: schemas.CorrelationAnalysis) -> schemas.ReportBl
                 else:
                     # If we somehow can't classify, skip this pair
                     continue
-                corr_type, corr_val = "Correlation ratio (eta)", correlation_ratio(cat, num)
+                corr_type, corr_val = (
+                    "Correlation ratio (eta)",
+                    correlation_ratio(cat, num),
+                )
 
             if pd.isna(corr_val) or abs(corr_val) < step.threshold:
                 continue

@@ -29,7 +29,6 @@ def _format_block_header(title: str) -> str:
 
 
 def _extract_operation_label(title: str) -> str:
-
     op = "result"
 
     for sep in ["—", "-"]:
@@ -52,7 +51,6 @@ def _extract_operation_label(title: str) -> str:
 
 
 def _format_single_block(block: schemas.ReportBlock, is_first: bool) -> str:
-
     parts: list[str] = []
 
     if not is_first:
@@ -93,7 +91,6 @@ def _format_single_block(block: schemas.ReportBlock, is_first: bool) -> str:
                 )
 
         elif cols == ["Average"]:
-
             rows.append([f"{hdr} — {op_label}", "", "Average"])
             for _, row in data.iterrows():
                 rows.append(["", "", str(row["Average"])])
@@ -140,6 +137,7 @@ def _render_category(blocks: list[schemas.ReportBlock]) -> str:
 # --- INSIGHTS ---
 import pandas as pd
 from generator import to_csv_string
+
 
 def _render_insights(blocks: list[schemas.ReportBlock]) -> str:
     """
@@ -206,7 +204,11 @@ def _render_insights(blocks: list[schemas.ReportBlock]) -> str:
             if "Correlation Value" in all_corr.columns:
                 all_corr = all_corr[~all_corr["Correlation Value"].isna()]
 
-            if not all_corr.empty and {"Column 1", "Column 2", "Correlation Value"}.issubset(all_corr.columns):
+            if not all_corr.empty and {
+                "Column 1",
+                "Column 2",
+                "Correlation Value",
+            }.issubset(all_corr.columns):
                 corr_df = all_corr[["Column 1", "Column 2", "Correlation Value"]].copy()
                 corr_df.rename(
                     columns={
@@ -257,6 +259,7 @@ def get_analysis_request(
 
 # --- ENDPOINT ---
 
+
 @router.get("/definitions.txt", response_class=PlainTextResponse)
 def download_definitions() -> str:
     """
@@ -264,9 +267,10 @@ def download_definitions() -> str:
     """
     return get_all_definitions_as_text()
 
+
 @router.post("/headers")
 async def extract_headers(file: UploadFile = File(...)):
-    """ 
+    """
     Extract column headers from an uploaded CSV or Excel file.
     Returns:
         {"headers": ["col_a", "col_b", ...]}
@@ -283,11 +287,14 @@ async def extract_headers(file: UploadFile = File(...)):
         elif lowered.endswith((".xls", ".xlsx")):
             df = pd.read_excel(buffer, nrows=0)
         else:
-            raise HTTPException(status_code=400, detail="Unsupported file type. Please upload CSV or Excel.")
+            raise HTTPException(
+                status_code=400,
+                detail="Unsupported file type. Please upload CSV or Excel.",
+            )
 
         headers = [str(col) for col in df.columns.tolist()]
         if not headers:
-          raise HTTPException(status_code=400, detail="No headers found in file.")
+            raise HTTPException(status_code=400, detail="No headers found in file.")
 
         return {"headers": headers}
 
@@ -295,7 +302,10 @@ async def extract_headers(file: UploadFile = File(...)):
         raise
     except Exception as exc:
         # You can log exc here
-        raise HTTPException(status_code=500, detail="Failed to parse headers from file.")
+        raise HTTPException(
+            status_code=500, detail="Failed to parse headers from file."
+        )
+
 
 @router.post("/generate-report/", tags=["Reports"], response_class=StreamingResponse)
 async def generate_report_endpoint(

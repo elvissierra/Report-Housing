@@ -3,7 +3,10 @@ import numpy as np
 import schemas
 from .helpers import prepare_data_groups, format_group_name
 
-def run(df: pd.DataFrame, step: schemas.OutlierDetectionAnalysis) -> schemas.ReportBlock:
+
+def run(
+    df: pd.DataFrame, step: schemas.OutlierDetectionAnalysis
+) -> schemas.ReportBlock:
     """
     Identifies outliers and returns a structured ReportBlock of the findings.
 
@@ -102,7 +105,6 @@ def run(df: pd.DataFrame, step: schemas.OutlierDetectionAnalysis) -> schemas.Rep
 
             pretty_rows: list[dict] = []
             for col_name, sub in raw_df.groupby("Column", sort=False):
-
                 pretty_rows.append(
                     {
                         "Column": col_name,

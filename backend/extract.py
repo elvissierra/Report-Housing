@@ -1,4 +1,5 @@
 import re
+
 # backend/app/extract.py
 import pandas as pd
 from typing import IO, Any
@@ -7,25 +8,25 @@ from typing import IO, Any
 from pandas.errors import ParserError, EmptyDataError
 
 CUSTOM_NA_VALUES = [
-    '',        # Empty string
-    '#N/A',    # Excel's Not Available
-    '#N/A N/A',
-    '#NA',
-    '-1.#IND',
-    '-1.#QNAN',
-    '-NaN',
-    '-nan',
-    '1.#IND',
-    '1.#QNAN',
-    '<NA>',    # Pandas' own missing value indicator
-    'N/A',     # Not Applicable
-    'NULL',    # SQL NULL
-    'NaN',     # The string 'NaN'
-    'n/a',
-    'nan',
-    'null',
-    '?',       # Common placeholder for missing
-    'None'     # Python's None
+    "",  # Empty string
+    "#N/A",  # Excel's Not Available
+    "#N/A N/A",
+    "#NA",
+    "-1.#IND",
+    "-1.#QNAN",
+    "-NaN",
+    "-nan",
+    "1.#IND",
+    "1.#QNAN",
+    "<NA>",  # Pandas' own missing value indicator
+    "N/A",  # Not Applicable
+    "NULL",  # SQL NULL
+    "NaN",  # The string 'NaN'
+    "n/a",
+    "nan",
+    "null",
+    "?",  # Common placeholder for missing
+    "None",  # Python's None
 ]
 
 
@@ -45,6 +46,7 @@ def _normalize_column_name(name: str) -> str:
     name = re.sub(r"_+", "_", name)
     name = name.strip("_")
     return name
+
 
 def _normalize_headers(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -74,26 +76,33 @@ def load_tabular_data(file_object: IO[Any], filename: str) -> pd.DataFrame:
     and returns a standardized pandas DataFrame. This is the application's "Strong Border".
     """
     filename_lower = filename.lower()
-    
+
     try:
         if filename_lower.endswith(".csv"):
             # Let pandas infer dtypes, don't force everything to string.
             # In extract.py, inside load_tabular_data, right before pd.read_csv/excel
 
-
-            df = pd.read_csv(file_object, sep=None, engine='python', on_bad_lines='warn', keep_default_na=False, na_values=CUSTOM_NA_VALUES)
+            df = pd.read_csv(
+                file_object,
+                sep=None,
+                engine="python",
+                on_bad_lines="warn",
+                keep_default_na=False,
+                na_values=CUSTOM_NA_VALUES,
+            )
 
         elif filename_lower.endswith((".xlsx", ".xls")):
             df = pd.read_excel(file_object, na_values=CUSTOM_NA_VALUES)
         else:
             # Raise a specific, informative error.
             raise TypeError("Unsupported file type. Please upload a CSV or Excel file.")
-    
-    
+
     # --- Correct, Specific Error Handling ---
     except (ParserError, EmptyDataError) as e:
         # Catch specific pandas errors and provide a user-friendly message.
-        raise ValueError(f"Failed to parse the file. It may be malformed or empty. Details: {e}")
+        raise ValueError(
+            f"Failed to parse the file. It may be malformed or empty. Details: {e}"
+        )
     except Exception as e:
         # A fallback for truly unexpected errors (e.g., file read errors).
         raise IOError(f"Could not read the file '{filename}'. Error: {e}")

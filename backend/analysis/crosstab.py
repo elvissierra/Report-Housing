@@ -61,7 +61,6 @@ def run(df: pd.DataFrame, step: schemas.CrosstabAnalysis) -> schemas.ReportBlock
             if grand_total > 0:
                 crosstab_result = crosstab_result / grand_total
 
-
         crosstab_result = crosstab_result.reset_index()
         crosstab_result["Group"] = format_group_name(group_name)
         all_crosstab_dfs.append(crosstab_result)

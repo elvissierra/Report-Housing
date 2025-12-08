@@ -8,7 +8,6 @@ import schemas
 from .helpers import prepare_data_groups, format_group_name, apply_transformations
 
 
-
 def run(df: pd.DataFrame, step: schemas.CustomAnalysis) -> schemas.ReportBlock:
     """
     Orchestrates the custom analysis pipeline and returns a structured ReportBlock.
@@ -140,7 +139,11 @@ def run(df: pd.DataFrame, step: schemas.CustomAnalysis) -> schemas.ReportBlock:
             ordered_cols = list(group_fields) + metric_cols
             final_df = final_df[ordered_cols]
 
-        elif multi_context and op == "distribution" and {"Group", "Column"}.issubset(final_df.columns):
+        elif (
+            multi_context
+            and op == "distribution"
+            and {"Group", "Column"}.issubset(final_df.columns)
+        ):
             # Ensure stable column order for distribution tables
             value_col = ""
             core_cols = [value_col, "%", "Count"]
@@ -169,9 +172,15 @@ def run(df: pd.DataFrame, step: schemas.CustomAnalysis) -> schemas.ReportBlock:
                         }
                     )
 
-            final_df = pd.DataFrame(pretty_rows, columns=["Group", "Column"] + core_cols)
+            final_df = pd.DataFrame(
+                pretty_rows, columns=["Group", "Column"] + core_cols
+            )
 
-        elif multi_context and op == "duplicate_count" and {"Group", "Column"}.issubset(final_df.columns):
+        elif (
+            multi_context
+            and op == "duplicate_count"
+            and {"Group", "Column"}.issubset(final_df.columns)
+        ):
             pretty_rows = []
 
             for (grp, col), sub in final_df.groupby(["Group", "Column"], sort=False):
@@ -195,7 +204,9 @@ def run(df: pd.DataFrame, step: schemas.CustomAnalysis) -> schemas.ReportBlock:
                         }
                     )
 
-            final_df = pd.DataFrame(pretty_rows, columns=["Group", "Column", "Duplicates", "Instances"])
+            final_df = pd.DataFrame(
+                pretty_rows, columns=["Group", "Column", "Duplicates", "Instances"]
+            )
 
         else:
             # Reorder columns to have context first only when we actually added them.
@@ -214,7 +225,9 @@ def run(df: pd.DataFrame, step: schemas.CustomAnalysis) -> schemas.ReportBlock:
                         ordered_context_cols.append(c)
                         seen.add(c)
 
-                data_cols = [c for c in final_df.columns if c not in ordered_context_cols]
+                data_cols = [
+                    c for c in final_df.columns if c not in ordered_context_cols
+                ]
                 final_df = final_df[ordered_context_cols + data_cols]
 
     return schemas.ReportBlock(title=step.output_name, data=final_df)

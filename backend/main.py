@@ -22,7 +22,9 @@ app.add_middleware(
 )
 
 # --- Static dir from env, defaulting to current layout ---
-DEFAULT_STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")
+DEFAULT_STATIC_DIR = os.path.join(
+    os.path.dirname(__file__), "..", "..", "frontend", "dist"
+)
 STATIC_DIR = os.path.abspath(os.getenv("STATIC_DIR", DEFAULT_STATIC_DIR))
 
 # Mount the static assets (JS, CSS files)
@@ -44,7 +46,9 @@ async def serve_vue_app():
     if os.path.exists(index_path):
         return FileResponse(index_path)
     return JSONResponse(
-        {"detail": "Frontend build not found. In development, use the Vite dev server on port 5173."},
+        {
+            "detail": "Frontend build not found. In development, use the Vite dev server on port 5173."
+        },
         status_code=404,
     )
 
