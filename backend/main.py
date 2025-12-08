@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 import os
 from routers import reports
 
@@ -28,11 +29,11 @@ DEFAULT_STATIC_DIR = os.path.join(
 STATIC_DIR = os.path.abspath(os.getenv("STATIC_DIR", DEFAULT_STATIC_DIR))
 
 # Mount the static assets (JS, CSS files)
-# app.mount(
-#     "/assets",
-#     StaticFiles(directory=os.path.join(STATIC_DIR, "assets")),
-#     name="vue-assets"
-# )
+app.mount(
+    "/assets",
+    StaticFiles(directory=os.path.join(STATIC_DIR, "assets")),
+    name="vue-assets"
+)
 
 
 # --- Root Endpoint (Serves the Vue App) ---
@@ -52,6 +53,15 @@ async def serve_vue_app():
         status_code=404,
     )
 
+@app.get("/vite.svg")
+async def serve_vite_svg():
+    """
+    Serve the Vite SVG icon referenced by the built index.html.
+    """
+    svg_path = os.path.join(STATIC_DIR, "vite.svg")
+    if os.path.exists(svg_path):
+        return FileResponse(svg_path)
+    return JSONResponse({"detail": "vite.svg not found"}, status_code=404)
 
 # --- Optional Health Check ---
 @app.get("/api/health")
