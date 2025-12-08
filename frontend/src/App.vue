@@ -25,7 +25,7 @@
         target="_blank"
         :disabled="FEEDBACK_LINK === '#'"
       >
-        Feedback (Quip)
+        Feedback (TBD)
       </v-btn>
 
       <input ref="fileInput" type="file" accept="application/json" class="d-none" @change="onImport" />
