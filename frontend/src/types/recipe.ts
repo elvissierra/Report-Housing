@@ -24,6 +24,7 @@ export interface Rule {
   operation: Operation
   options: RuleOptions
   enabled: boolean
+  group_by?: string[]
 }
 
 export interface Insights {

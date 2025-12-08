@@ -162,6 +162,7 @@ export const useRecipeStore = defineStore('recipe', {
           filterOperator: 'eq',
         },
         enabled: true,
+        group_by:[],
       }
       this.recipe.rules.push(r)
       save(this.recipe)
