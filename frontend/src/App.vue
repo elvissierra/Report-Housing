@@ -45,10 +45,139 @@
             </div>
           </v-col>
         </v-row>
+        <v-row class="mb-6">
+          <v-col cols="12">
+            <div class="mb-2 section-label">Step 1 · Data &amp; run</div>
+
+            <v-card class="mb-6 card-actions" variant="outlined" rounded="lg">
+              <v-card-title class="d-flex align-center justify-space-between">
+                <span>Utilities</span>
+                <div class="d-flex ga-2">
+                  <v-btn
+                    class="text-truncate"
+                    variant="tonal"
+                    color="primary"
+                    :disabled="!inputFile || isRunning"
+                    prepend-icon="mdi-table-column-plus-after"
+                    @click="importHeadersFromFile"
+                  >
+                    Import headers
+                  </v-btn>
+                  <v-btn
+                    class="text-truncate primary-pill"
+                    variant="flat"
+                    color="primary"
+                    :loading="isRunning"
+                    :disabled="isRunning || !inputFile"
+                    prepend-icon="mdi-play-circle"
+                    @click="runReport"
+                  >
+                    Run report
+                  </v-btn>
+                </div>
+              </v-card-title>
+              <v-card-text>
+                <div class="text-caption font-weight-medium mb-1">Run &amp; output</div>
+                <v-row dense>
+                  <v-col cols="12" md="5">
+                    <v-text-field
+                      v-model="bundleName"
+                      label="Output Analysis Title"
+                      placeholder="generated_report"
+                      density="compact"
+                      variant="outlined"
+                      hide-details
+                    />
+                  </v-col>
+                  <v-col cols="12" md="7">
+                    <v-file-input
+                      v-model="inputFile"
+                      label="Data file (CSV)"
+                      accept=".csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                      density="compact"
+                      variant="outlined"
+                      hide-details
+                    />
+                  </v-col>
+                </v-row>
+
+                <v-divider class="my-3" />
+
+                <div class="text-caption font-weight-medium mb-1">Recipe &amp; reference</div>
+                <v-row dense>
+                  <v-col cols="12" md="4">
+                    <v-btn
+                      block
+                      class="text-truncate"
+                      variant="tonal"
+                      color="primary"
+                      @click="exportRecipe"
+                      prepend-icon="mdi-content-save"
+                    >
+                      Export recipe
+                    </v-btn>
+                  </v-col>
+                  <v-col cols="12" md="4">
+                    <v-btn
+                      block
+                      class="text-truncate"
+                      variant="tonal"
+                      @click="openImport"
+                      prepend-icon="mdi-file-import"
+                    >
+                      Import recipe
+                    </v-btn>
+                  </v-col>
+                  <v-col cols="12" md="4">
+                    <v-btn
+                      block
+                      class="text-truncate"
+                      variant="text"
+                      color="error"
+                      prepend-icon="mdi-broom"
+                      @click="clearRecipe"
+                    >
+                      Clear setup
+                    </v-btn>
+                  </v-col>
+                </v-row>
+
+                <v-row dense class="mt-2">
+                  <v-col cols="12" md="6">
+                    <v-btn
+                      block
+                      class="text-truncate"
+                      variant="outlined"
+                      prepend-icon="mdi-book-open-page-variant"
+                      @click="openDefinitionsDialog"
+                    >
+                      View logic reference
+                    </v-btn>
+                  </v-col>
+                  <v-col cols="12" md="6">
+                    <v-btn
+                      block
+                      class="text-truncate"
+                      variant="text"
+                      prepend-icon="mdi-file-document-outline"
+                      @click="downloadDefinitions"
+                    >
+                      Download logic reference (.txt)
+                    </v-btn>
+                  </v-col>
+                </v-row>
+
+                <div v-if="errorMessage" class="mt-2 text-caption text-error">
+                  {{ errorMessage }}
+                </div>
+              </v-card-text>
+            </v-card>
+          </v-col>
+        </v-row>
         <v-row>
 
         <v-col cols="12" md="8">
-          <div class="mb-2 section-label">Step 1 · Columns &amp; rules</div>
+          <div class="mb-2 section-label">Step 2 · Columns &amp; rules</div>
           <v-card class="mb-6 card-headers" variant="outlined" rounded="lg">
             <v-card-title class="d-flex align-center">
               <span>Column Headers (manual)</span>
@@ -125,7 +254,7 @@
                   label="Column"
                   clearable
                   hide-details
-                  density="comfortable"
+                  density="compact"
                 />
               </v-col>
               <v-col cols="12" md="4">
@@ -135,7 +264,7 @@
                   label="Operation"
                   clearable
                   hide-details
-                  density="comfortable"
+                  density="compact"
                 />
               </v-col>
               <v-col cols="12" md="2" class="d-flex align-center">
@@ -300,10 +429,59 @@
               </template>
             </v-card-text>
           </v-card>
+
+          <!-- Understand the Logic (Quick Examples) -->
+          <v-card class="mb-6 card-understand" variant="outlined" rounded="lg">
+            <v-card-title class="d-flex align-center">
+              <span>Understand the logic</span>
+              <v-tooltip
+                text="Quick examples of what each advanced tool does so you can pick the right one for your question."
+              >
+                <template #activator="{ props }">
+                  <v-icon v-bind="props" size="18" class="ml-1">mdi-help-circle-outline</v-icon>
+                </template>
+              </v-tooltip>
+            </v-card-title>
+            <v-card-text class="text-caption">
+              <div class="mb-2">
+                <strong>Correlations</strong> – “How strongly do two columns move together?”
+                <br />
+                Example: <code>units_sold</code> vs <code>marketing_spend</code> (numeric–numeric, Pearson) or
+                <code>units_sold</code> vs <code>product_category</code> (numeric–categorical, correlation ratio η).
+              </div>
+              <div class="mb-2">
+                <strong>Crosstabs</strong> – “How does the mix of categories change across another field?”
+                <br />
+                Example: sources = <code>product_category</code>, targets = <code>region</code> to see category share by region.
+              </div>
+              <div class="mb-2">
+                <strong>Key Drivers</strong> – “Which columns help explain my main metric?”
+                <br />
+                Example: Target = <code>sales_amount</code>, Features = <code>discount_rate</code>, <code>quantity</code>, <code>channel</code>.
+              </div>
+              <div class="mb-2">
+                <strong>Outliers</strong> – “What values look unusually high or low?”
+                <br />
+                Example: Scan <code>sales_amount</code> and <code>discount_rate</code> with IQR = 1.5 to flag extreme rows.
+              </div>
+              <div class="mb-2">
+                <strong>Summary Stats</strong> – “What does the distribution look like?”
+                <br />
+                Example: Show count, mean, and quartiles for <code>sales_amount</code>, <code>quantity</code>.
+              </div>
+              <div>
+                <strong>Time Series</strong> – “How does this metric move over time?”
+                <br />
+                Example: Sum <code>sales_amount</code> by week using <code>order_date</code> as the time column.
+              </div>
+            </v-card-text>
+          </v-card>
         </v-col>
 
         <!-- Right: Insights & Actions -->
         <v-col cols="12" md="4" class="right-column">
+          <div class="mb-2 section-label">Step 3 · Insights &amp; advanced</div>
+
         <!-- Correlations -->
         <v-card class="mb-6 card-insights" variant="outlined" rounded="lg">
             <v-card-title class="d-flex align-center">
@@ -326,7 +504,7 @@
               closable-chips
               clearable
               hide-details
-              density="comfortable"
+              density="compact"
             />
             <v-combobox
               v-model="correlationTargets"
@@ -338,7 +516,7 @@
               clearable
               hide-details
               class="mt-2"
-              density="comfortable"
+              density="compact"
             />
             <v-slider
               v-model="correlationThreshold"
@@ -393,7 +571,7 @@
                         closable-chips
                         clearable
                         hide-details
-                        density="comfortable"
+                        density="compact"
                       />
                     </v-col>
                     <v-col cols="12">
@@ -407,7 +585,7 @@
                         clearable
                         hide-details
                         class="mt-2"
-                        density="comfortable"
+                        density="compact"
                       />
                     </v-col>
                     <v-col cols="12">
@@ -468,7 +646,7 @@
               closable-chips
               clearable
               hide-details
-              density="comfortable"
+              density="compact"
             />
             <v-combobox
               v-model="crosstabTargets"
@@ -480,7 +658,7 @@
               clearable
               hide-details
               class="mt-2"
-              density="comfortable"
+              density="compact"
             />
             <div class="d-flex align-center justify-space-between mt-3">
               <span class="text-caption">Crosstabs enabled</span>
@@ -525,7 +703,7 @@
                         closable-chips
                         clearable
                         hide-details
-                        density="comfortable"
+                        density="compact"
                       />
                     </v-col>
                     <v-col cols="12" md="6">
@@ -538,7 +716,7 @@
                         closable-chips
                         clearable
                         hide-details
-                        density="comfortable"
+                        density="compact"
                       />
                     </v-col>
                     <v-col cols="12" class="d-flex align-center justify-space-between mt-2">
@@ -609,7 +787,7 @@
                       label="Target variable"
                       clearable
                       hide-details
-                      density="comfortable"
+                      density="compact"
                     />
                     <v-select
                       v-model="keyDriver.feature_columns"
@@ -621,7 +799,7 @@
                       clearable
                       hide-details
                       class="mt-2"
-                      density="comfortable"
+                      density="compact"
                     />
                     <v-select
                       v-model="keyDriver.categorical_features"
@@ -633,7 +811,7 @@
                       clearable
                       hide-details
                       class="mt-2"
-                      density="comfortable"
+                      density="compact"
                     />
                     <v-text-field
                       v-model.number="keyDriver.p_value_threshold"
@@ -642,7 +820,7 @@
                       step="0.01"
                       min="0"
                       max="1"
-                      density="comfortable"
+                      density="compact"
                       variant="outlined"
                       hide-details
                       class="mt-2"
@@ -683,14 +861,14 @@
                       closable-chips
                       clearable
                       hide-details
-                      density="comfortable"
+                      density="compact"
                     />
                     <v-select
                       v-model="outlierDetection.method"
                       :items="['iqr', 'z-score']"
                       label="Method"
                       hide-details
-                      density="comfortable"
+                      density="compact"
                       class="mt-2"
                     />
                     <v-text-field
@@ -699,7 +877,7 @@
                       label="Threshold"
                       step="0.1"
                       min="0"
-                      density="comfortable"
+                      density="compact"
                       variant="outlined"
                       hide-details
                       class="mt-2"
@@ -740,7 +918,7 @@
                       closable-chips
                       clearable
                       hide-details
-                      density="comfortable"
+                      density="compact"
                     />
                     <!-- Column-level transforms can be added later -->
                   </v-expansion-panel-text>
@@ -776,7 +954,7 @@
                       label="Date column"
                       clearable
                       hide-details
-                      density="comfortable"
+                      density="compact"
                     />
                     <v-select
                       v-model="timeSeries.metric_column"
@@ -785,7 +963,7 @@
                       clearable
                       hide-details
                       class="mt-2"
-                      density="comfortable"
+                      density="compact"
                     />
                     <v-select
                       v-model="timeSeries.frequency"
@@ -793,7 +971,7 @@
                       label="Frequency"
                       hide-details
                       class="mt-2"
-                      density="comfortable"
+                      density="compact"
                     />
                     <v-select
                       v-model="timeSeries.metric"
@@ -801,7 +979,7 @@
                       label="Metric"
                       hide-details
                       class="mt-2"
-                      density="comfortable"
+                      density="compact"
                     />
                   </v-expansion-panel-text>
                 </v-expansion-panel>
@@ -809,150 +987,7 @@
             </v-card-text>
           </v-card>
 
-          <!-- Understand the Logic (Quick Examples) -->
-          <v-card class="mb-6 card-understand" variant="outlined" rounded="lg">
-            <v-card-title class="d-flex align-center">
-              <span>Understand the logic</span>
-              <v-tooltip
-                text="Quick examples of what each advanced tool does so you can pick the right one for your question."
-              >
-                <template #activator="{ props }">
-                  <v-icon v-bind="props" size="18" class="ml-1">mdi-help-circle-outline</v-icon>
-                </template>
-              </v-tooltip>
-            </v-card-title>
-            <v-card-text class="text-caption">
-              <div class="mb-2">
-                <strong>Correlations</strong> – “How strongly do two columns move together?”
-                <br />
-                Example: <code>units_sold</code> vs <code>marketing_spend</code> (numeric–numeric, Pearson) or
-                <code>units_sold</code> vs <code>product_category</code> (numeric–categorical, correlation ratio η).
-              </div>
-              <div class="mb-2">
-                <strong>Crosstabs</strong> – “How does the mix of categories change across another field?”
-                <br />
-                Example: sources = <code>product_category</code>, targets = <code>region</code> to see category share by region.
-              </div>
-              <div class="mb-2">
-                <strong>Key Drivers</strong> – “Which columns help explain my main metric?”
-                <br />
-                Example: Target = <code>sales_amount</code>, Features = <code>discount_rate</code>, <code>quantity</code>, <code>channel</code>.
-              </div>
-              <div class="mb-2">
-                <strong>Outliers</strong> – “What values look unusually high or low?”
-                <br />
-                Example: Scan <code>sales_amount</code> and <code>discount_rate</code> with IQR = 1.5 to flag extreme rows.
-              </div>
-              <div class="mb-2">
-                <strong>Summary Stats</strong> – “What does the distribution look like?”
-                <br />
-                Example: Show count, mean, and quartiles for <code>sales_amount</code>, <code>quantity</code>.
-              </div>
-              <div>
-                <strong>Time Series</strong> – “How does this metric move over time?”
-                <br />
-                Example: Sum <code>sales_amount</code> by week using <code>order_date</code> as the time column.
-              </div>
-            </v-card-text>
-          </v-card>
 
-          <v-card class="mb-6 card-actions sticky-card" variant="outlined" rounded="lg">
-            <v-card-title>Utilities</v-card-title>
-            <v-card-text>
-              <div class="text-caption font-weight-medium mb-1">Run & output</div>
-              <v-text-field
-                v-model="bundleName"
-                label="Output Analysis Title"
-                placeholder="generated_report"
-                density="comfortable"
-                variant="outlined"
-                hide-details
-                class="mb-3"
-              />
-              <v-file-input
-                v-model="inputFile"
-                label="Data file (CSV)"
-                accept=".csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
-                density="comfortable"
-                variant="outlined"
-                hide-details
-              />
-
-              <v-btn
-                block
-                class="mt-3 text-truncate"
-                variant="flat"
-                color="primary"
-                :loading="isRunning"
-                :disabled="isRunning || !inputFile"
-                prepend-icon="mdi-play-circle"
-                @click="runReport"
-              >
-                Run report
-              </v-btn>
-
-              <v-divider class="my-4" />
-
-              <div class="text-caption font-weight-medium mb-1">Recipe management</div>
-              <v-btn
-                block
-                class="text-truncate"
-                variant="tonal"
-                color="primary"
-                @click="exportRecipe"
-                prepend-icon="mdi-content-save"
-              >
-                Export Recipe
-              </v-btn>
-              <v-btn
-                block
-                class="mt-2 text-truncate"
-                variant="tonal"
-                @click="openImport"
-                prepend-icon="mdi-file-import"
-              >
-                Import Recipe
-              </v-btn>
-
-              <v-btn
-                block
-                class="mt-2 text-truncate"
-                variant="text"
-                color="error"
-                prepend-icon="mdi-broom"
-                @click="clearRecipe"
-              >
-                Clear current setup
-              </v-btn>
-
-              <v-divider class="my-4" />
-
-              <div class="text-caption font-weight-medium mb-1">Reference</div>
-              <v-btn
-                block
-                class="mt-2 text-truncate"
-                variant="outlined"
-                prepend-icon="mdi-book-open-page-variant"
-                @click="openDefinitionsDialog"
-              >
-                View logic reference
-              </v-btn>
-
-              <v-btn
-                block
-                class="mt-2 text-truncate"
-                variant="text"
-                prepend-icon="mdi-file-document-outline"
-                @click="downloadDefinitions"
-              >
-                Download logic reference (.txt)
-              </v-btn>
-
-              <div v-if="errorMessage" class="mt-2 text-caption text-error">
-                {{ errorMessage }}
-              </div>
-            </v-card-text>
-          </v-card>
         </v-col>
       </v-row>
       </v-container>
@@ -1352,6 +1387,43 @@ async function downloadDefinitions() {
   }
 }
 
+async function importHeadersFromFile() {
+  if (!inputFile.value) {
+    errorMessage.value = 'Please select a data file before importing headers.'
+    return
+  }
+
+  try {
+    errorMessage.value = null
+    const formData = new FormData()
+    formData.append('file', inputFile.value)
+
+    const resp = await fetch(`${API_BASE_URL}/headers`, {
+      method: 'POST',
+      body: formData,
+    })
+
+    if (!resp.ok) {
+      throw new Error(`HTTP ${resp.status}`)
+    }
+
+    const data = await resp.json()
+    const headers = Array.isArray((data as any).headers)
+      ? (data as any).headers.map((h: unknown) => normalizeHeaderName(String(h)))
+      : []
+
+    if (!headers.length) {
+      throw new Error('No headers returned from server')
+    }
+
+    store.setColumnHeaders(headers)
+    headersText.value = headers.join('\n')
+  } catch (err) {
+    console.error('Failed to import headers from file:', err)
+    errorMessage.value = 'Failed to import headers from file. Please check the API and try again.'
+  }
+}
+
 async function runReport() {
   if (!inputFile.value) {
     errorMessage.value = 'Please select a data file before running the report.'
@@ -1633,13 +1705,106 @@ for (const block of extraCorrelationBlocks.value) {
 
 <style>
 .app-background {
-  background: linear-gradient(180deg, #f8fafc 0%, #edf2ff 100%);
+  /* Soft neutral background in the spirit of macOS/iOS surfaces */
+  background: linear-gradient(180deg, #f5f5f7 0%, #f5f5f7 40%, #ffffff 100%);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+/* Treat the main container as the "app surface" */
+.app-background > .v-container {
+  max-width: 1040px;
+  width: 100%;
+  margin: 24px auto 32px;
+  background: rgba(255, 255, 255, 0.96);
+  border-radius: 24px;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+  padding-inline: 24px;
+}
+
+@media (max-width: 959px) {
+  .app-background > .v-container {
+    margin: 12px 8px 24px;
+    border-radius: 18px;
+    padding-inline: 16px;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+  }
+}
+
+.v-application {
+  --v-theme-primary: #facc15;          
+  --v-theme-primary-darken-1: #eab308; 
+  --v-theme-on-primary: #1f2937;       
+}
+
+/* Top app bar – light, minimal, with subtle divider like macOS toolbars */
+.v-app-bar {
+  background-color: #f9fafb !important;
+  color: #111827 !important;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.08);
+}
+
+.v-toolbar-title {
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .v-card {
   background-color: #ffffff;
-  border-radius: 10px;
-  border-color: #e2e8f0;
+  border-radius: 14px;
+  border-color: rgba(15, 23, 42, 0.06);
+  box-shadow:
+    0 4px 12px rgba(15, 23, 42, 0.04),
+    0 1px 1px rgba(15, 23, 42, 0.04);
+}
+
+/* Compact card layout – tighter padding, more "app-like" density */
+.card-headers .v-card-title,
+.card-add-rule .v-card-title,
+.card-rules .v-card-title,
+.card-insights .v-card-title,
+.card-crosstabs .v-card-title,
+.card-advanced .v-card-title,
+.card-understand .v-card-title,
+.card-actions .v-card-title {
+  padding-top: 8px !important;
+  padding-bottom: 4px !important;
+}
+
+.card-headers .v-card-text,
+.card-add-rule .v-card-text,
+.card-rules .v-card-text,
+.card-insights .v-card-text,
+.card-crosstabs .v-card-text,
+.card-advanced .v-card-text,
+.card-understand .v-card-text,
+.card-actions .v-card-text {
+  padding-top: 8px !important;
+  padding-bottom: 10px !important;
+}
+
+.card-rules .v-card.mb-2 {
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+}
+
+/* Right column layout: tidy vertical stack with compact spacing */
+.right-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Improve contrast on tonal buttons and chips when using mustard primary */
+.v-btn--variant-tonal {
+  color: #1f2937; /* dark slate text for legibility */
+  font-weight: 500;
+}
+
+.v-chip--variant-tonal {
+  color: #1f2937;
+  font-weight: 500;
 }
 
 .d-none { display: none; }
@@ -1649,45 +1814,6 @@ for (const block of extraCorrelationBlocks.value) {
 .switch-sm { transform: scale(0.85); transform-origin: center left; }
 .no-resize-ta textarea { resize: none !important; }
 
-.card-headers {
-  background-color: #b0f3cc39 !important; /* soft green */
-  border-color: #24663b81 !important;
-}
-
-.card-add-rule {
-  background-color: #b0f3cc21 !important; /* soft green */
-  border-color: #24663b81 !important;
-}
-
-.card-rules {
-  background-color: #ff9d0020 !important; /* soft yellow */
-  border-color: #ff8800 !important;
-}
-
-.card-insights {
-  background-color: #ff9d0020 !important; /* soft yellow */
-  border-color: #ff8800 !important;
-}
-
-.card-advanced {
-  background-color: #ff9d0020 !important; /* soft yellow */
-  border-color: #ff8800 !important;
-}
-
-.card-understand {
-  background-color: #2548d51d !important; /* light lavender */
-  border-color: #6d81f0 !important;
-}
-
-.card-actions {
-  background-color: #fdf2f8 !important; /* soft rose */
-  border-color: #f9a8d4 !important;
-}
-
-.app-background {
-  background: linear-gradient(180deg, #f5f5f7 0%, #ffffff 40%, #ffffff 100%);
-}
-
 /* Page header */
 .page-header h1 {
   font-weight: 600;
@@ -1695,6 +1821,15 @@ for (const block of extraCorrelationBlocks.value) {
 
 .page-header p {
   max-width: 640px;
+}
+
+.section-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(17, 24, 39, 0.45);
+  font-weight: 500;
+  margin-bottom: 4px;
 }
 
 /* Card polish – unify look across the main sections */
@@ -1707,7 +1842,7 @@ for (const block of extraCorrelationBlocks.value) {
 .card-understand,
 .card-actions {
   background-color: #ffffff;
-  border-radius: 12px;
+  border-radius: 14px;
 }
 
 /* Stronger section titles */
@@ -1722,24 +1857,7 @@ for (const block of extraCorrelationBlocks.value) {
   font-weight: 500;
 }
 
-/* Right column layout: tidy vertical stack */
-.right-column {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
 
-/* Make the Utilities card stick on desktop */
-.sticky-card {
-  position: sticky;
-  top: 96px; /* below app bar */
-  z-index: 2;
-}
-
-/* Ensure header textarea can’t be resized */
-.no-resize-ta textarea {
-  resize: none !important;
-}
 
 /* Mobile tweaks – disable sticky so it doesn’t feel broken on small screens */
 @media (max-width: 959px) {
@@ -1750,5 +1868,13 @@ for (const block of extraCorrelationBlocks.value) {
   .sticky-card {
     position: static;
   }
+}
+
+.primary-pill {
+  border-radius: 999px !important;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+  padding-inline: 20px;
 }
 </style>

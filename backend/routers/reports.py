@@ -16,7 +16,6 @@ from generator import to_csv_string
 router = APIRouter()
 
 
-
 def _format_block_header(title: str) -> str:
     """
     - Uppercases and replaces space with _
@@ -264,6 +263,39 @@ def download_definitions() -> str:
     Returns a plain-text reference of all supported analyses and statistical terms.
     """
     return get_all_definitions_as_text()
+
+@router.post("/headers")
+async def extract_headers(file: UploadFile = File(...)):
+    """ 
+    Extract column headers from an uploaded CSV or Excel file.
+    Returns:
+        {"headers": ["col_a", "col_b", ...]}
+    """
+    filename = file.filename or ""
+
+    try:
+        raw = await file.read()
+        buffer = BytesIO(raw)
+
+        lowered = filename.lower()
+        if lowered.endswith(".csv"):
+            df = pd.read_csv(buffer, nrows=0)
+        elif lowered.endswith((".xls", ".xlsx")):
+            df = pd.read_excel(buffer, nrows=0)
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported file type. Please upload CSV or Excel.")
+
+        headers = [str(col) for col in df.columns.tolist()]
+        if not headers:
+          raise HTTPException(status_code=400, detail="No headers found in file.")
+
+        return {"headers": headers}
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        # You can log exc here
+        raise HTTPException(status_code=500, detail="Failed to parse headers from file.")
 
 @router.post("/generate-report/", tags=["Reports"], response_class=StreamingResponse)
 async def generate_report_endpoint(

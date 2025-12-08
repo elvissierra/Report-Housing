@@ -9,7 +9,23 @@ import * as directives from 'vuetify/directives'
 import '@mdi/font/css/materialdesignicons.css'
 
 const app = createApp(App)
-const vuetify = createVuetify({ components, directives })
+
+const vuetify = createVuetify({
+  components,
+  directives,
+  theme: {
+    defaultTheme: 'light',
+    themes: {
+      light: {
+        colors: {
+          primary: '#facc15',
+          'primary-darken-1': '#eab308',
+        },
+      },
+    },
+  },
+})
+
 app.use(createPinia())
 app.use(vuetify)
 app.mount('#app')
