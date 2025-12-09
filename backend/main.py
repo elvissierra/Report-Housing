@@ -16,7 +16,7 @@ origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
 
 app.include_router(
     reports.router,
-    prefix="/api"
+    prefix="/api",
     tags=["reports"],
 )
 
