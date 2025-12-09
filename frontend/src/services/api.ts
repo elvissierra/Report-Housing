@@ -112,8 +112,11 @@ export interface AnalysisRequest {
   analysis_steps: AnalysisJob[]
 }
 
+const API_BASE_URL: string =
+  import.meta.env.VITE_API_BASE_URL || `${window.location.origin}/api`
+
 const api = axios.create({
-  baseURL: 'http://localhost:8000/api',
+  baseURL: API_BASE_URL,
 })
 
 export async function submitReport(file: File, request: AnalysisRequest): Promise<Blob> {

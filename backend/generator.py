@@ -1,4 +1,3 @@
-# backend/app/generator.py
 import pandas as pd
 
 

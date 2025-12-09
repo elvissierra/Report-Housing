@@ -1,6 +1,5 @@
 import re
 
-# backend/app/extract.py
 import pandas as pd
 from typing import IO, Any
 
