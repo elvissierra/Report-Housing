@@ -14,6 +14,12 @@ raw_origins = os.getenv(
 )
 origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
 
+app.include_router(
+    reports.router,
+    prefix="/api"
+    tags=["reports"],
+)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
