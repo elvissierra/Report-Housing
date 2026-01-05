@@ -1357,7 +1357,7 @@ function buildPostFiltersForRule(r: Rule): Filter[] {
 
   if (r.options.excludeKeys && r.options.excludeKeys.length > 0) {
     postFilters.push({
-      column: r.column,
+      column: normalizeHeaderName(String(r.column)),
       operator: 'not_in',
       value: r.options.excludeKeys,
     })
@@ -1365,7 +1365,7 @@ function buildPostFiltersForRule(r: Rule): Filter[] {
 
   if (r.operation === 'valueCount' && r.options.value) {
     postFilters.push({
-      column: r.column,
+      column: normalizeHeaderName(String(r.column)),
       operator: 'eq',
       value: r.options.value,
     })
