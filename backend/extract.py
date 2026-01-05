@@ -48,11 +48,26 @@ def _normalize_column_name(name: str) -> str:
 
 
 def _normalize_headers(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Internal helper to normalize column names to a canonical lower_snake_case form.
+    """Normalize column names to canonical lower_snake_case and make them unique.
+
+    Why: If a DataFrame has duplicate column names, `df["col"]` returns a DataFrame
+    (not a Series). Downstream string ops like `.str.strip()` then fail.
+
+    We de-duplicate by appending a numeric suffix: col, col_2, col_3, ...
     """
     df = df.copy()
-    df.columns = [_normalize_column_name(col) for col in df.columns]
+
+    normalized = [_normalize_column_name(col) for col in df.columns]
+
+    seen: dict[str, int] = {}
+    unique_cols: list[str] = []
+    for name in normalized:
+        base = name or "column"
+        count = seen.get(base, 0) + 1
+        seen[base] = count
+        unique_cols.append(base if count == 1 else f"{base}_{count}")
+
+    df.columns = unique_cols
     return df
 
 
@@ -63,8 +78,14 @@ def _clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     df = _normalize_headers(df)
 
     # Correctly trim whitespace ONLY from object/string columns without destroying other types.
+    # If duplicate column names exist, df[col] returns a DataFrame; handle that safely.
     for col in df.select_dtypes(include=["object"]).columns:
-        df[col] = df[col].str.strip()
+        value = df[col]
+        if isinstance(value, pd.DataFrame):
+            # Multiple columns share the same name; trim each sub-column.
+            df[col] = value.apply(lambda s: s.str.strip())
+        else:
+            df[col] = value.str.strip()
 
     return df
 
