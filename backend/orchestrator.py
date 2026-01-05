@@ -52,7 +52,7 @@ def run_dynamic_analysis(
             )
 
             error_df = pd.DataFrame(
-                [{"Error": "An unexpected error occurred during this analysis step."}]
+                [{"Error": f"{type(e).__name__}: {e}"}]
             )
             yield schemas.ReportBlock(
                 title=f"Error in step: {step.output_name}", data=error_df

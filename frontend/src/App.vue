@@ -1085,7 +1085,7 @@ const operations: Operation[] = [
   'clean',
 ]
 
-const frequencies = ['D', 'W', 'M']
+const frequencies = ['D', 'W', 'ME']
 const timeSeriesMetrics: Array<'sum' | 'average' | 'count'> = ['sum', 'average', 'count']
 
 const keyDriver = computed({
@@ -1336,6 +1336,8 @@ function buildFiltersForRule(r: Rule): Filter[] {
   const filters: Filter[] = []
 
   const filterColumn = r.options.filterColumn
+    ? normalizeHeaderName(String(r.options.filterColumn))
+    : ''
   const filterValue = r.options.filterValue
   const operator = r.options.filterOperator || 'eq'
 
@@ -1442,7 +1444,13 @@ async function importHeadersFromFile() {
     })
 
     if (!resp.ok) {
-      throw new Error(`HTTP ${resp.status}`)
+      let bodyText = ''
+      try {
+        bodyText = await resp.text()
+      } catch {
+        bodyText = ''
+      }
+      throw new Error(bodyText || `HTTP ${resp.status}`)
     }
 
     const data = await resp.json()
@@ -1458,7 +1466,9 @@ async function importHeadersFromFile() {
     headersText.value = headers.join('\n')
   } catch (err) {
     console.error('Failed to import headers from file:', err)
-    errorMessage.value = 'Failed to import headers from file. Please check the API and try again.'
+    errorMessage.value = err instanceof Error
+      ? err.message
+      : 'Failed to import headers from file. Please check the API and try again.'
   }
 }
 
@@ -1505,8 +1515,10 @@ async function runReport() {
         type: 'custom',
         output_name: `${r.column} — ${r.operation}`,
         filters,
-        group_by: Array.isArray((r as any).group_by) ? (r as any).group_by : [],
-        target_columns: [r.column],
+        group_by: Array.isArray((r as any).group_by)
+          ? (r as any).group_by.map((c: string) => normalizeHeaderName(String(c)))
+          : [],
+        target_columns: [normalizeHeaderName(String(r.column))],
         transformations,
         operation,
         post_transformation_filters: postFilters,
@@ -1516,12 +1528,12 @@ async function runReport() {
     })
 
 store.setInsights(
-  correlationSources.value,
-  correlationTargets.value,
+  (correlationSources.value || []).map((c) => normalizeHeaderName(String(c))),
+  (correlationTargets.value || []).map((c) => normalizeHeaderName(String(c))),
   correlationThreshold.value,
   correlationEnabled.value,
-  crosstabSources.value,
-  crosstabTargets.value,
+  (crosstabSources.value || []).map((c) => normalizeHeaderName(String(c))),
+  (crosstabTargets.value || []).map((c) => normalizeHeaderName(String(c))),
   crosstabEnabled.value,
 )
 const insight = store.recipe.insights
@@ -1545,7 +1557,7 @@ if (insight.enabled) {
           output_name: `Correlation: ${src} vs ${tgt}`,
           filters: [],
           group_by: [],
-          columns: [src, tgt],
+          columns: [normalizeHeaderName(String(src)), normalizeHeaderName(String(tgt))],
           threshold: insight.threshold ?? 0.2,
         })
       }
@@ -1570,7 +1582,7 @@ for (const block of extraCorrelationBlocks.value) {
         output_name: `Correlation (extra): ${src} vs ${tgt}`,
         filters: [],
         group_by: [],
-        columns: [src, tgt],
+        columns: [normalizeHeaderName(String(src)), normalizeHeaderName(String(tgt))],
         threshold: block.threshold ?? insight.threshold ?? 0.2,
       })
     }
@@ -1592,8 +1604,8 @@ for (const block of extraCorrelationBlocks.value) {
           output_name: `Crosstab: ${src} vs ${tgt}`,
           filters: [],
           group_by: [],
-          index_column: src,
-          column_to_compare: tgt,
+          index_column: normalizeHeaderName(String(src)),
+          column_to_compare: normalizeHeaderName(String(tgt)),
           column_transformations: [],
           show_percentages: 'none',
         })
@@ -1621,8 +1633,8 @@ for (const block of extraCorrelationBlocks.value) {
           output_name: `Crosstab: ${src} vs ${tgt}`,
           filters: [],
           group_by: [],
-          index_column: src,
-          column_to_compare: tgt,
+          index_column: normalizeHeaderName(String(src)),
+          column_to_compare: normalizeHeaderName(String(tgt)),
           column_transformations: [],
           show_percentages: 'none',
         })
@@ -1645,9 +1657,9 @@ for (const block of extraCorrelationBlocks.value) {
       output_name: `Key Drivers — ${kdConfig.target_variable}`,
       filters: [],
       group_by: [],
-      target_variable: kdConfig.target_variable,
-      feature_columns: kdConfig.feature_columns,
-      categorical_features: kdConfig.categorical_features ?? [],
+      target_variable: normalizeHeaderName(String(kdConfig.target_variable)),
+      feature_columns: (kdConfig.feature_columns || []).map((c: string) => normalizeHeaderName(String(c))),
+      categorical_features: (kdConfig.categorical_features ?? []).map((c: string) => normalizeHeaderName(String(c))),
       include_intercept: kdConfig.include_intercept,
       p_value_threshold: kdConfig.p_value_threshold,
     })
@@ -1664,7 +1676,7 @@ for (const block of extraCorrelationBlocks.value) {
       output_name: 'Outliers',
       filters: [],
       group_by: [],
-      target_columns: outlierConfig.target_columns,
+      target_columns: (outlierConfig.target_columns || []).map((c: string) => normalizeHeaderName(String(c))),
       method: outlierConfig.method,
       threshold: outlierConfig.threshold,
     })
@@ -1681,7 +1693,7 @@ for (const block of extraCorrelationBlocks.value) {
       output_name: 'Summary Statistics',
       filters: [],
       group_by: [],
-      numeric_columns: statsConfig.numeric_columns,
+      numeric_columns: (statsConfig.numeric_columns || []).map((c: string) => normalizeHeaderName(String(c))),
       column_transformations: [],
     })
   }
@@ -1698,9 +1710,9 @@ for (const block of extraCorrelationBlocks.value) {
       output_name: 'Time Series',
       filters: [],
       group_by: [],
-      date_column: tsConfig.date_column,
-      metric_column: tsConfig.metric_column,
-      frequency: tsConfig.frequency,
+      date_column: normalizeHeaderName(String(tsConfig.date_column)),
+      metric_column: normalizeHeaderName(String(tsConfig.metric_column)),
+      frequency: (tsConfig.frequency === 'M' ? 'ME' : tsConfig.frequency),
       metric: tsConfig.metric,
     })
   }
