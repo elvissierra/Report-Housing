@@ -1,4 +1,5 @@
 import re
+import csv
 
 import pandas as pd
 from typing import IO, Any
@@ -27,6 +28,76 @@ CUSTOM_NA_VALUES = [
     "?",  # Common placeholder for missing
     "None",  # Python's None
 ]
+
+
+def _seek_start(file_object: IO[Any]) -> None:
+    """Best-effort rewind for file-like objects used by pandas."""
+    try:
+        file_object.seek(0)
+    except Exception:
+        # Not all file-like objects are seekable; ignore if not.
+        pass
+
+
+def _read_sample_text(file_object: IO[Any], size: int = 65536) -> str:
+    """Read a small sample without consuming the stream for subsequent reads."""
+    _seek_start(file_object)
+    sample = file_object.read(size)
+    _seek_start(file_object)
+
+    # UploadFile.file is often bytes; normalize to str for csv.Sniffer.
+    if isinstance(sample, bytes):
+        return sample.decode("utf-8-sig", errors="replace")
+    return str(sample)
+
+
+def _detect_delimiter(sample_text: str) -> str:
+    """Detect a likely delimiter for common tabular exports."""
+    delimiters = [",", "\t", ";", "|"]
+
+    # Prefer Sniffer when possible.
+    try:
+        dialect = csv.Sniffer().sniff(sample_text, delimiters=delimiters)
+        if getattr(dialect, "delimiter", None) in delimiters:
+            return dialect.delimiter
+    except Exception:
+        pass
+
+    # Fallback: choose the delimiter that appears most often in the header line.
+    header_line = sample_text.splitlines()[0] if sample_text else ""
+    counts = {d: header_line.count(d) for d in delimiters}
+    best = max(counts, key=counts.get)
+    return best if counts[best] > 0 else ","
+
+
+def _read_csv_robust(file_object: IO[Any]) -> pd.DataFrame:
+    """Read CSV with robust delimiter detection and safer failure modes."""
+    sample_text = _read_sample_text(file_object)
+    delimiter = _detect_delimiter(sample_text)
+
+    _seek_start(file_object)
+    df = pd.read_csv(
+        file_object,
+        sep=delimiter,
+        engine="python",
+        on_bad_lines="warn",
+        keep_default_na=False,
+        na_values=CUSTOM_NA_VALUES,
+    )
+
+    # Sanity check: if we detected a delimiter but only got 1 column, this is
+    # very likely a delimiter/quoting issue that will cascade into "Column not found".
+    if df.shape[1] == 1:
+        header_line = sample_text.splitlines()[0] if sample_text else ""
+        if any(d in header_line for d in [",", "\t", ";", "|"]):
+            raise ValueError(
+                "Detected only 1 column when reading the CSV. "
+                "This usually means the delimiter was mis-detected or the file contains unescaped delimiters/quotes. "
+                f"Detected delimiter: {repr(delimiter)}. "
+                "Please re-export the CSV with proper quoting or confirm the delimiter."
+            )
+
+    return df
 
 
 def _normalize_column_name(name: str) -> str:
@@ -78,17 +149,7 @@ def load_tabular_data(file_object: IO[Any], filename: str) -> pd.DataFrame:
 
     try:
         if filename_lower.endswith(".csv"):
-            # Let pandas infer dtypes, don't force everything to string.
-            # In extract.py, inside load_tabular_data, right before pd.read_csv/excel
-
-            df = pd.read_csv(
-                file_object,
-                sep=None,
-                engine="python",
-                on_bad_lines="warn",
-                keep_default_na=False,
-                na_values=CUSTOM_NA_VALUES,
-            )
+            df = _read_csv_robust(file_object)
 
         elif filename_lower.endswith((".xlsx", ".xls")):
             df = pd.read_excel(file_object, na_values=CUSTOM_NA_VALUES)
