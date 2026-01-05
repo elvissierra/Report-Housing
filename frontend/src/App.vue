@@ -1085,7 +1085,7 @@ const operations: Operation[] = [
   'clean',
 ]
 
-const frequencies = ['D', 'W', 'ME']
+const frequencies = ['D', 'W', 'M']
 const timeSeriesMetrics: Array<'sum' | 'average' | 'count'> = ['sum', 'average', 'count']
 
 const keyDriver = computed({
@@ -1336,8 +1336,6 @@ function buildFiltersForRule(r: Rule): Filter[] {
   const filters: Filter[] = []
 
   const filterColumn = r.options.filterColumn
-    ? normalizeHeaderName(String(r.options.filterColumn))
-    : ''
   const filterValue = r.options.filterValue
   const operator = r.options.filterOperator || 'eq'
 
@@ -1357,7 +1355,7 @@ function buildPostFiltersForRule(r: Rule): Filter[] {
 
   if (r.options.excludeKeys && r.options.excludeKeys.length > 0) {
     postFilters.push({
-      column: normalizeHeaderName(String(r.column)),
+      column: r.column,
       operator: 'not_in',
       value: r.options.excludeKeys,
     })
@@ -1365,7 +1363,7 @@ function buildPostFiltersForRule(r: Rule): Filter[] {
 
   if (r.operation === 'valueCount' && r.options.value) {
     postFilters.push({
-      column: normalizeHeaderName(String(r.column)),
+      column: r.column,
       operator: 'eq',
       value: r.options.value,
     })
@@ -1444,13 +1442,7 @@ async function importHeadersFromFile() {
     })
 
     if (!resp.ok) {
-      let bodyText = ''
-      try {
-        bodyText = await resp.text()
-      } catch {
-        bodyText = ''
-      }
-      throw new Error(bodyText || `HTTP ${resp.status}`)
+      throw new Error(`HTTP ${resp.status}`)
     }
 
     const data = await resp.json()
@@ -1466,9 +1458,7 @@ async function importHeadersFromFile() {
     headersText.value = headers.join('\n')
   } catch (err) {
     console.error('Failed to import headers from file:', err)
-    errorMessage.value = err instanceof Error
-      ? err.message
-      : 'Failed to import headers from file. Please check the API and try again.'
+    errorMessage.value = 'Failed to import headers from file. Please check the API and try again.'
   }
 }
 
@@ -1515,10 +1505,8 @@ async function runReport() {
         type: 'custom',
         output_name: `${r.column} — ${r.operation}`,
         filters,
-        group_by: Array.isArray((r as any).group_by)
-          ? (r as any).group_by.map((c: string) => normalizeHeaderName(String(c)))
-          : [],
-        target_columns: [normalizeHeaderName(String(r.column))],
+        group_by: Array.isArray((r as any).group_by) ? (r as any).group_by : [],
+        target_columns: [r.column],
         transformations,
         operation,
         post_transformation_filters: postFilters,
@@ -1528,12 +1516,12 @@ async function runReport() {
     })
 
 store.setInsights(
-  (correlationSources.value || []).map((c) => normalizeHeaderName(String(c))),
-  (correlationTargets.value || []).map((c) => normalizeHeaderName(String(c))),
+  correlationSources.value,
+  correlationTargets.value,
   correlationThreshold.value,
   correlationEnabled.value,
-  (crosstabSources.value || []).map((c) => normalizeHeaderName(String(c))),
-  (crosstabTargets.value || []).map((c) => normalizeHeaderName(String(c))),
+  crosstabSources.value,
+  crosstabTargets.value,
   crosstabEnabled.value,
 )
 const insight = store.recipe.insights
@@ -1557,7 +1545,7 @@ if (insight.enabled) {
           output_name: `Correlation: ${src} vs ${tgt}`,
           filters: [],
           group_by: [],
-          columns: [normalizeHeaderName(String(src)), normalizeHeaderName(String(tgt))],
+          columns: [src, tgt],
           threshold: insight.threshold ?? 0.2,
         })
       }
@@ -1582,7 +1570,7 @@ for (const block of extraCorrelationBlocks.value) {
         output_name: `Correlation (extra): ${src} vs ${tgt}`,
         filters: [],
         group_by: [],
-        columns: [normalizeHeaderName(String(src)), normalizeHeaderName(String(tgt))],
+        columns: [src, tgt],
         threshold: block.threshold ?? insight.threshold ?? 0.2,
       })
     }
@@ -1604,8 +1592,8 @@ for (const block of extraCorrelationBlocks.value) {
           output_name: `Crosstab: ${src} vs ${tgt}`,
           filters: [],
           group_by: [],
-          index_column: normalizeHeaderName(String(src)),
-          column_to_compare: normalizeHeaderName(String(tgt)),
+          index_column: src,
+          column_to_compare: tgt,
           column_transformations: [],
           show_percentages: 'none',
         })
@@ -1633,8 +1621,8 @@ for (const block of extraCorrelationBlocks.value) {
           output_name: `Crosstab: ${src} vs ${tgt}`,
           filters: [],
           group_by: [],
-          index_column: normalizeHeaderName(String(src)),
-          column_to_compare: normalizeHeaderName(String(tgt)),
+          index_column: src,
+          column_to_compare: tgt,
           column_transformations: [],
           show_percentages: 'none',
         })
@@ -1657,9 +1645,9 @@ for (const block of extraCorrelationBlocks.value) {
       output_name: `Key Drivers — ${kdConfig.target_variable}`,
       filters: [],
       group_by: [],
-      target_variable: normalizeHeaderName(String(kdConfig.target_variable)),
-      feature_columns: (kdConfig.feature_columns || []).map((c: string) => normalizeHeaderName(String(c))),
-      categorical_features: (kdConfig.categorical_features ?? []).map((c: string) => normalizeHeaderName(String(c))),
+      target_variable: kdConfig.target_variable,
+      feature_columns: kdConfig.feature_columns,
+      categorical_features: kdConfig.categorical_features ?? [],
       include_intercept: kdConfig.include_intercept,
       p_value_threshold: kdConfig.p_value_threshold,
     })
@@ -1676,7 +1664,7 @@ for (const block of extraCorrelationBlocks.value) {
       output_name: 'Outliers',
       filters: [],
       group_by: [],
-      target_columns: (outlierConfig.target_columns || []).map((c: string) => normalizeHeaderName(String(c))),
+      target_columns: outlierConfig.target_columns,
       method: outlierConfig.method,
       threshold: outlierConfig.threshold,
     })
@@ -1693,7 +1681,7 @@ for (const block of extraCorrelationBlocks.value) {
       output_name: 'Summary Statistics',
       filters: [],
       group_by: [],
-      numeric_columns: (statsConfig.numeric_columns || []).map((c: string) => normalizeHeaderName(String(c))),
+      numeric_columns: statsConfig.numeric_columns,
       column_transformations: [],
     })
   }
@@ -1710,9 +1698,9 @@ for (const block of extraCorrelationBlocks.value) {
       output_name: 'Time Series',
       filters: [],
       group_by: [],
-      date_column: normalizeHeaderName(String(tsConfig.date_column)),
-      metric_column: normalizeHeaderName(String(tsConfig.metric_column)),
-      frequency: (tsConfig.frequency === 'M' ? 'ME' : tsConfig.frequency),
+      date_column: tsConfig.date_column,
+      metric_column: tsConfig.metric_column,
+      frequency: tsConfig.frequency,
       metric: tsConfig.metric,
     })
   }
@@ -1745,34 +1733,7 @@ for (const block of extraCorrelationBlocks.value) {
         console.error('Failed to read error blob', blobErr)
       }
     }
-    // Surface backend error details in the UI (critical for debugging schema/column mismatches).
-  if (axios.isAxiosError(err)) {
-    const data = err.response?.data as any
-
-    // If backend returns JSON
-    if (data && typeof data === 'object' && !(data instanceof Blob)) {
-      const detail = (data.detail ?? data.message ?? data.error) as unknown
-      errorMessage.value = typeof detail === 'string' ? detail : JSON.stringify(data)
-      return
-    }
-
-    // If backend returns plain text / blob
-    if (data instanceof Blob) {
-      try {
-        const text = await data.text()
-        errorMessage.value = text || 'Failed to generate report. Please try again.'
-        return
-      } catch {
-        // fall through
-      }
-    }
-
-    const status = err.response?.status
-    errorMessage.value = status ? `Request failed (HTTP ${status}).` : 'Failed to generate report. Please try again.'
-    return
-  }
-
-errorMessage.value = 'Failed to generate report. Please try again.'
+    errorMessage.value = 'Failed to generate report. Please try again.'
   } finally {
     isRunning.value = false
   }

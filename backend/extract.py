@@ -1,5 +1,4 @@
 import re
-import csv
 
 import pandas as pd
 from typing import IO, Any
@@ -29,40 +28,6 @@ CUSTOM_NA_VALUES = [
     "None",  # Python's None
 ]
 
-def _seek_start(file_object: IO[Any]) -> None:
-    """Best-effort rewind for file-like objects used by pandas."""
-    try:
-        file_object.seek(0)
-    except Exception:
-        pass
-
-
-def _read_sample_text(file_object: IO[Any], size: int = 256_000) -> str:
-    """Read a small sample without consuming the stream for subsequent reads."""
-    _seek_start(file_object)
-    sample = file_object.read(size)
-    _seek_start(file_object)
-
-    if isinstance(sample, bytes):
-        return sample.decode("utf-8-sig", errors="replace")
-    return str(sample)
-
-
-def _find_unbalanced_quote_lines(sample_text: str, max_hits: int = 12) -> list[int]:
-    """Heuristic: find lines with an odd number of unescaped quote chars.
-
-    Removes doubled quotes ("") which represent a literal quote in CSV.
-    This helps identify malformed exports with stray/unclosed quotes.
-    """
-    hits: list[int] = []
-    for idx, line in enumerate(sample_text.splitlines(), start=1):
-        stripped = line.replace('""', "")
-        if stripped.count('"') % 2 == 1:
-            hits.append(idx)
-            if len(hits) >= max_hits:
-                break
-    return hits
-
 
 def _normalize_column_name(name: str) -> str:
     """
@@ -84,24 +49,10 @@ def _normalize_column_name(name: str) -> str:
 
 def _normalize_headers(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Normalize column names to canonical lower_snake_case AND make them unique.
-
-    Why: If a DataFrame has duplicate column names, df['col'] returns a DataFrame,
-    which breaks code expecting Series methods like .str.strip().
+    Internal helper to normalize column names to a canonical lower_snake_case form.
     """
     df = df.copy()
-
-    normalized = [_normalize_column_name(col) for col in df.columns]
-
-    seen: dict[str, int] = {}
-    unique_cols: list[str] = []
-    for name in normalized:
-        base = name or "column"
-        count = seen.get(base, 0) + 1
-        seen[base] = count
-        unique_cols.append(base if count == 1 else f"{base}_{count}")
-
-    df.columns = unique_cols
+    df.columns = [_normalize_column_name(col) for col in df.columns]
     return df
 
 
@@ -113,11 +64,7 @@ def _clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
     # Correctly trim whitespace ONLY from object/string columns without destroying other types.
     for col in df.select_dtypes(include=["object"]).columns:
-        value = df[col]
-        if isinstance(value, pd.DataFrame):
-            df[col] = value.apply(lambda s: s.str.strip())
-        else:
-            df[col] = value.str.strip()
+        df[col] = df[col].str.strip()
 
     return df
 
@@ -138,7 +85,7 @@ def load_tabular_data(file_object: IO[Any], filename: str) -> pd.DataFrame:
                 file_object,
                 sep=None,
                 engine="python",
-                on_bad_lines="error",
+                on_bad_lines="warn",
                 keep_default_na=False,
                 na_values=CUSTOM_NA_VALUES,
             )
@@ -151,18 +98,7 @@ def load_tabular_data(file_object: IO[Any], filename: str) -> pd.DataFrame:
 
     # --- Correct, Specific Error Handling ---
     except (ParserError, EmptyDataError) as e:
-        sample_text = _read_sample_text(file_object)
-        bad_quote_lines = _find_unbalanced_quote_lines(sample_text)
-    
-        if bad_quote_lines:
-            raise ValueError(
-                "Failed to parse the CSV due to malformed quoting (unbalanced \"). "
-                "This typically happens when a field contains a raw quote that wasn't escaped "
-                '(CSV uses doubled quotes: ""). '
-                f"Check these line numbers in the uploaded file (1-based, sample scan): {bad_quote_lines}. "
-                f"Details: {e}"
-            )
-    
+        # Catch specific pandas errors and provide a user-friendly message.
         raise ValueError(
             f"Failed to parse the file. It may be malformed or empty. Details: {e}"
         )
