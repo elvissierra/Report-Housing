@@ -1733,7 +1733,34 @@ for (const block of extraCorrelationBlocks.value) {
         console.error('Failed to read error blob', blobErr)
       }
     }
-    errorMessage.value = 'Failed to generate report. Please try again.'
+    // Surface backend error details in the UI (critical for debugging schema/column mismatches).
+  if (axios.isAxiosError(err)) {
+    const data = err.response?.data as any
+
+    // If backend returns JSON
+    if (data && typeof data === 'object' && !(data instanceof Blob)) {
+      const detail = (data.detail ?? data.message ?? data.error) as unknown
+      errorMessage.value = typeof detail === 'string' ? detail : JSON.stringify(data)
+      return
+    }
+
+    // If backend returns plain text / blob
+    if (data instanceof Blob) {
+      try {
+        const text = await data.text()
+        errorMessage.value = text || 'Failed to generate report. Please try again.'
+        return
+      } catch {
+        // fall through
+      }
+    }
+
+    const status = err.response?.status
+    errorMessage.value = status ? `Request failed (HTTP ${status}).` : 'Failed to generate report. Please try again.'
+    return
+  }
+
+errorMessage.value = 'Failed to generate report. Please try again.'
   } finally {
     isRunning.value = false
   }
