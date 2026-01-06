@@ -1,5 +1,5 @@
 import re
-
+import csv
 import pandas as pd
 from typing import IO, Any
 
@@ -104,11 +104,16 @@ def load_tabular_data(file_object: IO[Any], filename: str) -> pd.DataFrame:
 
             df = pd.read_csv(
                 file_object,
+                # Keep CSV quoting enabled (default). Disabling quoting (QUOTE_NONE)
+                # often *creates* "Expected N fields, saw M" when delimiters exist
+                # inside quoted text fields.
                 sep=None,
                 engine="python",
                 on_bad_lines="warn",
                 keep_default_na=False,
                 na_values=CUSTOM_NA_VALUES,
+                quotechar='"',
+                doublequote=True,
             )
 
         elif filename_lower.endswith((".xlsx", ".xls")):

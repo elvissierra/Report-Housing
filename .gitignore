@@ -6,3 +6,4 @@ venv
 .env
 .env.production
 .env.development
+csv_files/
