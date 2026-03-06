@@ -3,9 +3,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 import os
+from database import Base, engine
+import models
 from routers import reports
 
 app = FastAPI(title="Report Auto API")
+
+# Bootstrap ORM tables for the initial persistence milestone.
+# This keeps iteration simple before Alembic is introduced.
+Base.metadata.create_all(bind=engine)
 
 # --- CORS from env ---
 raw_origins = os.getenv(

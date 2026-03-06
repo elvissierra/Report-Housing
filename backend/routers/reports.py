@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
 from fastapi.responses import StreamingResponse, Response, PlainTextResponse
 from utils.definitions import get_all_definitions_as_text
@@ -12,6 +14,9 @@ import schemas
 from extract import load_tabular_data
 from orchestrator import run_dynamic_analysis
 from generator import to_csv_string
+from database import get_db
+from models import ReportRun, RunStepResult, RunArtifact
+from sqlalchemy.orm import Session
 
 router = APIRouter()
 
@@ -311,6 +316,7 @@ async def extract_headers(file: UploadFile = File(...)):
 async def generate_report_endpoint(
     input_file: UploadFile = File(..., description="The source CSV or Excel file."),
     request_data: schemas.AnalysisRequest = Depends(get_analysis_request),
+    db: Session = Depends(get_db),
 ):
     """
     Accepts a data file and a JSON analysis request, then returns a ZIP file
@@ -319,6 +325,19 @@ async def generate_report_endpoint(
       - report.csv   -> main analysis blocks (custom, summary_stats, etc.)
       - insights.csv -> any Crosstab and Correlation analysis blocks
     """
+    run = ReportRun(
+        status="running",
+        input_filename=input_file.filename,
+        output_filename=request_data.output_filename,
+        request_payload=request_data.model_dump(mode="json"),
+        total_steps=len(request_data.analysis_steps),
+        completed_steps=0,
+        started_at=datetime.utcnow(),
+    )
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+
     try:
         input_df = load_tabular_data(input_file.file, input_file.filename)
 
@@ -327,8 +346,10 @@ async def generate_report_endpoint(
         report_blocks: list[schemas.ReportBlock] = []
         insight_blocks: list[schemas.ReportBlock] = []
 
-        for block in blocks:
+        for index, block in enumerate(blocks, start=1):
             title_lower = block.title.lower()
+            step = request_data.analysis_steps[index - 1]
+            is_error_block = title_lower.startswith("error in step:")
 
             if (
                 "correlation" in title_lower
@@ -339,6 +360,27 @@ async def generate_report_endpoint(
             else:
                 report_blocks.append(block)
 
+            row_count = None
+            if block.data is not None:
+                row_count = len(block.data.index)
+
+            step_result = RunStepResult(
+                run_id=run.id,
+                step_index=index,
+                step_type=step.type,
+                output_name=step.output_name,
+                status="failed" if is_error_block else "success",
+                row_count=row_count,
+                error_message=(
+                    "Step returned an error block during analysis execution."
+                    if is_error_block
+                    else None
+                ),
+                started_at=run.started_at,
+                finished_at=datetime.utcnow(),
+            )
+            db.add(step_result)
+
         report_csv = _render_category(report_blocks)
         insights_csv = _render_insights(insight_blocks)
 
@@ -347,10 +389,31 @@ async def generate_report_endpoint(
         with zipfile.ZipFile(zip_buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
             if report_csv:
                 zf.writestr("report.csv", report_csv)
+                db.add(
+                    RunArtifact(
+                        run_id=run.id,
+                        artifact_type="report_csv",
+                        file_name="report.csv",
+                        file_path=None,
+                        content_type="text/csv",
+                        size_bytes=len(report_csv.encode("utf-8")),
+                    )
+                )
             if insights_csv:
                 zf.writestr("insights.csv", insights_csv)
+                db.add(
+                    RunArtifact(
+                        run_id=run.id,
+                        artifact_type="insights_csv",
+                        file_name="insights.csv",
+                        file_path=None,
+                        content_type="text/csv",
+                        size_bytes=len(insights_csv.encode("utf-8")),
+                    )
+                )
 
         zip_buf.seek(0)
+        zip_bytes = zip_buf.getvalue()
 
         # Derive zip filename from requested output_filename.
         out_name = request_data.output_filename or "generated_report.zip"
@@ -359,12 +422,35 @@ async def generate_report_endpoint(
                 out_name = out_name.rsplit(".", 1)[0]
             out_name = f"{out_name}.zip"
 
+        db.add(
+            RunArtifact(
+                run_id=run.id,
+                artifact_type="zip",
+                file_name=out_name,
+                file_path=None,
+                content_type="application/zip",
+                size_bytes=len(zip_bytes),
+            )
+        )
+
+        run.status = "success"
+        run.completed_steps = len(blocks)
+        run.finished_at = datetime.utcnow()
+        run.output_filename = out_name
+        db.commit()
+
+        zip_buf = BytesIO(zip_bytes)
         return StreamingResponse(
             zip_buf,
             media_type="application/zip",
             headers={"Content-Disposition": f'attachment; filename="{out_name}"'},
         )
     except Exception as e:
+        run.status = "failed"
+        run.error_message = str(e)
+        run.finished_at = datetime.utcnow()
+        db.commit()
+
         logging.exception("Error in generate_report_endpoint")
         return Response(
             content=json.dumps(
