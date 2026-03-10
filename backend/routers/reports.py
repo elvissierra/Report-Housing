@@ -1,5 +1,5 @@
 from datetime import datetime
-
+from sqlalchemy import select
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
 from fastapi.responses import StreamingResponse, Response, PlainTextResponse
 from utils.definitions import get_all_definitions_as_text
@@ -16,10 +16,107 @@ from orchestrator import run_dynamic_analysis
 from generator import to_csv_string
 from database import get_db
 from models import ReportRun, RunStepResult, RunArtifact
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 router = APIRouter()
 
+
+@router.get("/runs/", tags=["Reports"])
+def list_report_runs(db: Session = Depends(get_db)):
+    """
+    Return a lightweight run-history view so persistence can be inspected
+    from the API without touching the database directly.
+    """
+    stmt = select(ReportRun).order_by(ReportRun.created_at.desc())
+    runs = db.execute(stmt).scalars().all()
+
+    return [
+        {
+            "id": run.id,
+            "status": run.status,
+            "input_filename": run.input_filename,
+            "output_filename": run.output_filename,
+            "total_steps": run.total_steps,
+            "completed_steps": run.completed_steps,
+            "error_message": run.error_message,
+            "started_at": run.started_at.isoformat() if run.started_at else None,
+            "finished_at": run.finished_at.isoformat() if run.finished_at else None,
+            "input_row_count": run.input_row_count,
+            "input_column_count": run.input_column_count,
+            "duration_seconds": run.duration_seconds,
+            "created_at": run.created_at.isoformat() if run.created_at else None,
+            "updated_at": run.updated_at.isoformat() if run.updated_at else None,
+        }
+        for run in runs
+    ]
+
+@router.get("/runs/{run_id}", tags=["Reports"])
+def get_report_run(run_id: str, db: Session = Depends(get_db)):
+    """
+    Return a single run with its step results and generated artifacts so a
+    caller can inspect exactly what happened for that run.
+    """
+    stmt = (
+        select(ReportRun)
+        .options(
+            selectinload(ReportRun.step_results),
+            selectinload(ReportRun.artifacts),
+        )
+        .where(ReportRun.id == run_id)
+    )
+    run = db.execute(stmt).scalars().first()
+
+    if run is None:
+        raise HTTPException(status_code=404, detail="Run not found.")
+
+    step_results = sorted(run.step_results, key=lambda item: item.step_index)
+    artifacts = sorted(run.artifacts, key=lambda item: item.created_at)
+
+    return {
+        "id": run.id,
+        "status": run.status,
+        "input_filename": run.input_filename,
+        "output_filename": run.output_filename,
+        "request_payload": run.request_payload,
+        "total_steps": run.total_steps,
+        "completed_steps": run.completed_steps,
+        "error_message": run.error_message,
+        "started_at": run.started_at.isoformat() if run.started_at else None,
+        "finished_at": run.finished_at.isoformat() if run.finished_at else None,
+        "input_row_count": run.input_row_count,
+        "input_column_count": run.input_column_count,
+        "duration_seconds": run.duration_seconds,
+        "created_at": run.created_at.isoformat() if run.created_at else None,
+        "updated_at": run.updated_at.isoformat() if run.updated_at else None,
+        "steps": [
+            {
+                "id": step.id,
+                "step_index": step.step_index,
+                "step_type": step.step_type,
+                "output_name": step.output_name,
+                "status": step.status,
+                "row_count": step.row_count,
+                "error_message": step.error_message,
+                "started_at": step.started_at.isoformat() if step.started_at else None,
+                "finished_at": step.finished_at.isoformat() if step.finished_at else None,
+                "created_at": step.created_at.isoformat() if step.created_at else None,
+                "duration_seconds": step.duration_seconds,
+            }
+            for step in step_results
+        ],
+        "artifacts": [
+            {
+                "id": artifact.id,
+                "artifact_type": artifact.artifact_type,
+                "file_name": artifact.file_name,
+                "file_path": artifact.file_path,
+                "content_type": artifact.content_type,
+                "size_bytes": artifact.size_bytes,
+                "created_at": artifact.created_at.isoformat() if artifact.created_at else None,
+            }
+            for artifact in artifacts
+        ],
+    }
 
 def _format_block_header(title: str) -> str:
     """
@@ -139,10 +236,6 @@ def _render_category(blocks: list[schemas.ReportBlock]) -> str:
     return "".join(parts)
 
 
-# --- INSIGHTS ---
-import pandas as pd
-from generator import to_csv_string
-
 
 def _render_insights(blocks: list[schemas.ReportBlock]) -> str:
     """
@@ -239,6 +332,33 @@ def _render_insights(blocks: list[schemas.ReportBlock]) -> str:
                 parts.append(to_csv_string(corr_with_header, header=False))
 
     return "".join(parts)
+
+
+def _build_run_scoped_filename(filename: str, run_id: str) -> str:
+    """
+    Append the run id to a filename so generated artifacts can be traced
+    back to the exact ReportRun that created them.
+    """
+    if "." in filename:
+        stem, ext = filename.rsplit(".", 1)
+        return f"{stem}__{run_id}.{ext}"
+    return f"{filename}__{run_id}"
+
+
+def _build_export_title_csv(output_filename: str, run_id: str) -> str:
+    """
+    Build a top-of-sheet metadata row so the generated spreadsheet clearly shows
+    the logical output title and the run id that produced it.
+    """
+    base_title = output_filename or "generated_report"
+    if "." in base_title:
+        base_title = base_title.rsplit(".", 1)[0]
+
+    # Clean it up for display.
+    display_title = base_title.replace("_", " ").strip()
+
+    title_df = pd.DataFrame([[display_title, f"Run ID: {run_id}"]])
+    return to_csv_string(title_df, header=False) + "\n"
 
 
 def get_analysis_request(
@@ -340,13 +460,15 @@ async def generate_report_endpoint(
 
     try:
         input_df = load_tabular_data(input_file.file, input_file.filename)
-
+        run.input_row_count = len(input_df.index)
+        run.input_column_count = len(input_df.columns)
         blocks = list(run_dynamic_analysis(input_df, request_data))
 
         report_blocks: list[schemas.ReportBlock] = []
         insight_blocks: list[schemas.ReportBlock] = []
 
         for index, block in enumerate(blocks, start=1):
+            step_finished_at = datetime.utcnow()
             title_lower = block.title.lower()
             step = request_data.analysis_steps[index - 1]
             is_error_block = title_lower.startswith("error in step:")
@@ -377,35 +499,64 @@ async def generate_report_endpoint(
                     else None
                 ),
                 started_at=run.started_at,
-                finished_at=datetime.utcnow(),
+                finished_at=step_finished_at,
+                duration_seconds=(
+                    (step_finished_at - run.started_at).total_seconds()
+                    if run.started_at
+                    else None
+                ),
             )
             db.add(step_result)
 
-        report_csv = _render_category(report_blocks)
-        insights_csv = _render_insights(insight_blocks)
+        report_body = _render_category(report_blocks)
+        insights_body = _render_insights(insight_blocks)
+
+        report_csv = ""
+        if report_body:
+            report_csv = (
+                _build_export_title_csv(
+                    request_data.output_filename or "generated_report",
+                    run.id,
+                )
+                + report_body
+            )
+
+        insights_csv = ""
+        if insights_body:
+            insights_csv = (
+                _build_export_title_csv(
+                    f"{(request_data.output_filename or 'generated_report')}_insights",
+                    run.id,
+                )
+                + insights_body
+            )
+        
+
+        report_csv_name = _build_run_scoped_filename("report.csv", run.id)
+        insights_csv_name = _build_run_scoped_filename("insights.csv", run.id)
 
         # Build ZIP in memory.
         zip_buf = BytesIO()
         with zipfile.ZipFile(zip_buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
             if report_csv:
-                zf.writestr("report.csv", report_csv)
+                zf.writestr(report_csv_name, report_csv)
                 db.add(
                     RunArtifact(
                         run_id=run.id,
                         artifact_type="report_csv",
-                        file_name="report.csv",
+                        file_name=report_csv_name,
                         file_path=None,
                         content_type="text/csv",
                         size_bytes=len(report_csv.encode("utf-8")),
                     )
                 )
             if insights_csv:
-                zf.writestr("insights.csv", insights_csv)
+                zf.writestr(insights_csv_name, insights_csv)
                 db.add(
                     RunArtifact(
                         run_id=run.id,
                         artifact_type="insights_csv",
-                        file_name="insights.csv",
+                        file_name=insights_csv_name,
                         file_path=None,
                         content_type="text/csv",
                         size_bytes=len(insights_csv.encode("utf-8")),
@@ -415,12 +566,14 @@ async def generate_report_endpoint(
         zip_buf.seek(0)
         zip_bytes = zip_buf.getvalue()
 
-        # Derive zip filename from requested output_filename.
+        # Derive zip filename from requested output_filename and scope it to the run id.
         out_name = request_data.output_filename or "generated_report.zip"
         if not out_name.lower().endswith(".zip"):
             if "." in out_name:
                 out_name = out_name.rsplit(".", 1)[0]
             out_name = f"{out_name}.zip"
+        
+        out_name = _build_run_scoped_filename(out_name, run.id)
 
         db.add(
             RunArtifact(
@@ -436,6 +589,11 @@ async def generate_report_endpoint(
         run.status = "success"
         run.completed_steps = len(blocks)
         run.finished_at = datetime.utcnow()
+        run.duration_seconds = (
+            (run.finished_at - run.started_at).total_seconds()
+            if run.started_at and run.finished_at
+            else None
+        )
         run.output_filename = out_name
         db.commit()
 
@@ -443,7 +601,10 @@ async def generate_report_endpoint(
         return StreamingResponse(
             zip_buf,
             media_type="application/zip",
-            headers={"Content-Disposition": f'attachment; filename="{out_name}"'},
+            headers={
+                "Content-Disposition": f'attachment; filename="{out_name}"',
+                "X-Report-Run-Id": run.id,
+            },
         )
     except Exception as e:
         run.status = "failed"
