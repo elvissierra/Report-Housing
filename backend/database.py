@@ -1,24 +1,41 @@
-
-
 import os
 from typing import Generator
 
 from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 
 DEFAULT_DATABASE_URL = "sqlite:///./ra_runs.db"
 DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_DATABASE_URL)
 
-# SQLite requires this flag when used from FastAPI request handling.
-connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 
-engine = create_engine(
-    DATABASE_URL,
-    future=True,
-    echo=False,
-    connect_args=connect_args,
-)
+def _is_sqlite(url: str) -> bool:
+    return url.startswith("sqlite")
+
+
+def _build_engine(database_url: str) -> Engine:
+    """
+    Build the SQLAlchemy engine with backend-specific options.
+
+    - Postgres gets connection health checks that are better suited for a
+      longer-running API service.
+    """
+    engine_kwargs = {
+        "future": True,
+        "echo": False,
+    }
+
+    if _is_sqlite(database_url):
+        engine_kwargs["connect_args"] = {"check_same_thread": False}
+    else:
+        engine_kwargs["pool_pre_ping"] = True
+        engine_kwargs["pool_recycle"] = 1800
+
+    return create_engine(database_url, **engine_kwargs)
+
+
+engine = _build_engine(DATABASE_URL)
 
 SessionLocal = sessionmaker(
     bind=engine,
