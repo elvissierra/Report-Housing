@@ -163,6 +163,16 @@ def _extract_operation_label(title: str) -> str:
     return op or "result"
 
 
+# Column signatures produced by each compact-format analysis operation.
+# Defined here so that a rename in an analysis module surfaces as a single
+# point-of-change rather than a silent rendering regression.
+_COLS_DISTRIBUTION = ["", "%", "Count"]
+_COLS_DUPLICATE = ["Duplicates", "Instances"]
+_COLS_AVERAGE = ["Average"]
+_COLS_SUM = ["Sum"]
+_COLS_MEDIAN = ["Median"]
+
+
 def _format_single_block(block: schemas.ReportBlock, is_first: bool) -> str:
     parts: list[str] = []
 
@@ -178,7 +188,7 @@ def _format_single_block(block: schemas.ReportBlock, is_first: bool) -> str:
         rows: list[list[str]] = []
 
         # Distribution-style: ["", "%", "Count"]
-        if cols == ["", "%", "Count"]:
+        if cols == _COLS_DISTRIBUTION:
             # Single header row: column name + operation + metric labels.
             rows.append([f"{hdr} — {op_label}", "%", "Count"])
 
@@ -191,7 +201,7 @@ def _format_single_block(block: schemas.ReportBlock, is_first: bool) -> str:
                     ]
                 )
 
-        elif cols == ["Duplicates", "Instances"]:
+        elif cols == _COLS_DUPLICATE:
             # Single header row: column name + operation + metric labels.
             rows.append([f"{hdr} — {op_label}", "Duplicates", "Instances"])
             for _, row in data.iterrows():
@@ -203,10 +213,11 @@ def _format_single_block(block: schemas.ReportBlock, is_first: bool) -> str:
                     ]
                 )
 
-        elif cols == ["Average"]:
-            rows.append([f"{hdr} — {op_label}", "", "Average"])
+        elif cols in (_COLS_AVERAGE, _COLS_SUM, _COLS_MEDIAN):
+            metric_label = cols[0]
+            rows.append([f"{hdr} — {op_label}", "", metric_label])
             for _, row in data.iterrows():
-                rows.append(["", "", str(row["Average"])])
+                rows.append(["", "", str(row[metric_label])])
 
         else:
             padded_cols = cols[:3] + [""] * max(0, 3 - len(cols))

@@ -69,6 +69,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { normalizeHeaderName } from '../../utils/normalize'
 
 const props = defineProps<{ columnHeaders: string[] }>()
 const emit = defineEmits<{ (e: 'setHeaders', headers: string[]): void }>()
@@ -83,16 +84,6 @@ watch(
   },
   { deep: true },
 )
-
-function normalizeHeaderName(name: string): string {
-  return name
-    .trim()
-    .replace(/\s+/g, ' ')
-    .toLowerCase()
-    .replace(/[^\w]+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_+|_+$/g, '')
-}
 
 function formatHeaderLabel(name: string): string {
   const withSpaces = name.replace(/_/g, ' ').trim()

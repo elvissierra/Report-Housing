@@ -14,7 +14,7 @@ from analysis import (
 )
 
 
-logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 ANALYSIS_HANDLERS = {
     "custom": operations.run,
@@ -47,8 +47,8 @@ def run_dynamic_analysis(
                 )
 
         except Exception as e:
-            logging.error(
-                f"Error processing step '{step.output_name}': {e}", exc_info=True
+            logger.error(
+                "Error processing step '%s': %s", step.output_name, e, exc_info=True
             )
 
             error_df = pd.DataFrame(

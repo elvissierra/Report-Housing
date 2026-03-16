@@ -1,14 +1,5 @@
-function normalizeHeaderName(name: string): string {
-  return name
-    .trim()
-    .replace(/\s+/g, ' ')
-    .toLowerCase()
-    .replace(/[^\w]+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_+|_+$/g, '')
-}
-
 import { defineStore } from 'pinia'
+import { normalizeHeaderName } from '../utils/normalize'
 import type {
   Recipe,
   Rule,

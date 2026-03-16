@@ -276,7 +276,7 @@ def _op_average(series: pd.Series) -> pd.DataFrame:
     """
     numeric_series = pd.to_numeric(series, errors="coerce").dropna()
     if numeric_series.empty:
-        return pd.DataFrame({"Average": [np.nan]})
+        return pd.DataFrame({"Average": [pd.NA]})
     mean_val = float(round(numeric_series.mean(), 2))
     return pd.DataFrame({"Average": [mean_val]})
 
@@ -291,7 +291,7 @@ def _op_sum(series: pd.Series) -> pd.DataFrame:
     """
     numeric_series = pd.to_numeric(series, errors="coerce").dropna()
     if numeric_series.empty:
-        return pd.DataFrame({"Sum": [np.nan]})
+        return pd.DataFrame({"Sum": [pd.NA]})
     sum_val = float(round(numeric_series.sum(), 2))
     return pd.DataFrame({"Sum": [sum_val]})
 
@@ -299,7 +299,7 @@ def _op_sum(series: pd.Series) -> pd.DataFrame:
 def _op_median(series: pd.Series) -> pd.DataFrame:
     s = series.dropna()
     if s.empty:
-        return pd.DataFrame({"Median": [np.nan]})
+        return pd.DataFrame({"Median": [pd.NA]})
 
     # 1) Try numeric median
     numeric_series = pd.to_numeric(s, errors="coerce").dropna()
@@ -315,7 +315,7 @@ def _op_median(series: pd.Series) -> pd.DataFrame:
         median_str = median_dt.strftime("%m/%d/%Y")
         return pd.DataFrame({"Median": [median_str]})
 
-    return pd.DataFrame({"Median": [np.nan]})
+    return pd.DataFrame({"Median": [pd.NA]})
 
 
 def _op_duplicate_count(series: pd.Series) -> pd.DataFrame:
