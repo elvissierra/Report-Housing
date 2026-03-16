@@ -133,7 +133,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRecipeStore } from '../stores/recipe'
-import type { Operation, Rule } from '../types/recipe'
+import type { Operation, Rule, CorrelationBlockConfig, CrosstabBlockConfig } from '../types/recipe'
 import { submitReport } from '../services/api'
 import type { AnalysisRequest, CustomAnalysis, CrosstabAnalysis, CorrelationAnalysis, Filter, Transformation } from '../services/api'
 import axios from 'axios'
@@ -147,20 +147,6 @@ import UnderstandLogicCard from '../components/help/UnderstandLogicCard.vue'
 import ActionsCard from '../components/actions/ActionsCard.vue'
 import LogicReference from '../components/actions/LogicReference.vue'
 
-interface CorrelationBlockConfig {
-  id: string
-  sources: string[]
-  targets: string[]
-  threshold: number
-  enabled: boolean
-}
-
-interface CrosstabBlockConfig {
-  id: string
-  sources: string[]
-  targets: string[]
-  enabled: boolean
-}
 
 const FEEDBACK_LINK: string = import.meta.env.VITE_FEEDBACK_LINK || '#'
 const store = useRecipeStore()
@@ -233,19 +219,44 @@ function remove(id: string) {
 }
 
 
-// Correlations
-const correlationSources = ref<string[]>(store.recipe.insights.sources ?? [])
-const correlationTargets = ref<string[]>(store.recipe.insights.targets ?? [])
-const correlationThreshold = ref<number>(store.recipe.insights.threshold ?? 0.2)
-const correlationEnabled = ref<boolean>(store.recipe.insights.enabled ?? true)
-
-// Crosstabs
-const crosstabSources = ref<string[]>(store.recipe.insights.crosstabSources ?? [])
-const crosstabTargets = ref<string[]>(store.recipe.insights.crosstabTargets ?? [])
-const crosstabEnabled = ref<boolean>(store.recipe.insights.crosstabEnabled ?? true)
-
-const extraCorrelationBlocks = ref<CorrelationBlockConfig[]>([])
-const extraCrosstabBlocks = ref<CrosstabBlockConfig[]>([])
+// Insights state — all backed by the store so changes are persisted immediately
+// and the exported recipe is always in sync without a manual flush step.
+const correlationSources = computed({
+  get: () => store.recipe.insights.sources,
+  set: (v: string[]) => store.patchInsights({ sources: v }),
+})
+const correlationTargets = computed({
+  get: () => store.recipe.insights.targets,
+  set: (v: string[]) => store.patchInsights({ targets: v }),
+})
+const correlationThreshold = computed({
+  get: () => store.recipe.insights.threshold,
+  set: (v: number) => store.patchInsights({ threshold: v }),
+})
+const correlationEnabled = computed({
+  get: () => store.recipe.insights.enabled,
+  set: (v: boolean) => store.patchInsights({ enabled: v }),
+})
+const crosstabSources = computed({
+  get: () => store.recipe.insights.crosstabSources,
+  set: (v: string[]) => store.patchInsights({ crosstabSources: v }),
+})
+const crosstabTargets = computed({
+  get: () => store.recipe.insights.crosstabTargets,
+  set: (v: string[]) => store.patchInsights({ crosstabTargets: v }),
+})
+const crosstabEnabled = computed({
+  get: () => store.recipe.insights.crosstabEnabled,
+  set: (v: boolean) => store.patchInsights({ crosstabEnabled: v }),
+})
+const extraCorrelationBlocks = computed({
+  get: () => store.recipe.insights.extraCorrelationBlocks,
+  set: (v: CorrelationBlockConfig[]) => store.patchInsights({ extraCorrelationBlocks: v }),
+})
+const extraCrosstabBlocks = computed({
+  get: () => store.recipe.insights.extraCrosstabBlocks,
+  set: (v: CrosstabBlockConfig[]) => store.patchInsights({ extraCrosstabBlocks: v }),
+})
 
 const fileInput = ref<HTMLInputElement | null>(null)
 function openImport() {
@@ -314,11 +325,7 @@ function loadTemplate(name: string) {
 }
 
 function cryptoRandom() {
-  try {
-    return crypto.randomUUID().slice(0, 8)
-  } catch {
-    return Math.random().toString(36).slice(2, 10)
-  }
+  return crypto.randomUUID()
 }
 
 function buildTransformationsForRule(r: Rule): Transformation[] {
@@ -369,21 +376,10 @@ function buildPostFiltersForRule(r: Rule): Filter[] {
 }
 
 function clearRecipe() {
-  if (typeof (store as any).resetRecipe === 'function') {
-    ;(store as any).resetRecipe()
-    correlationSources.value = []
-    correlationTargets.value = []
-    correlationThreshold.value = store.recipe.insights.threshold ?? 0.2
-    correlationEnabled.value = store.recipe.insights.enabled ?? true
-    crosstabSources.value = []
-    crosstabTargets.value = []
-    crosstabEnabled.value = store.recipe.insights.crosstabEnabled ?? true
-    extraCorrelationBlocks.value = []
-    extraCrosstabBlocks.value = []
-    bundleName.value = 'generated_report'
-    inputFile.value = null
-    errorMessage.value = null
-  }
+  store.resetRecipe()
+  bundleName.value = 'generated_report'
+  inputFile.value = null
+  errorMessage.value = null
 }
 
 
@@ -473,16 +469,6 @@ async function runReport() {
 
       return step
     })
-
-  store.setInsights(
-    correlationSources.value,
-    correlationTargets.value,
-    correlationThreshold.value,
-    correlationEnabled.value,
-    crosstabSources.value,
-    crosstabTargets.value,
-    crosstabEnabled.value,
-  )
 
   const insight = store.recipe.insights
   const analysisSteps: AnalysisRequest['analysis_steps'] = [...customSteps]

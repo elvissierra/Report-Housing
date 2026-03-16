@@ -107,12 +107,7 @@
 </template>
 
 <script setup lang="ts">
-interface CrosstabBlockConfig {
-  id: string
-  sources: string[]
-  targets: string[]
-  enabled: boolean
-}
+import type { CrosstabBlockConfig } from '../../types/recipe'
 
 const props = defineProps<{
   columnHeaders: string[]
@@ -130,11 +125,7 @@ const emit = defineEmits<{
 }>()
 
 function makeId() {
-  try {
-    return crypto.randomUUID().slice(0, 8)
-  } catch {
-    return Math.random().toString(36).slice(2, 10)
-  }
+  return crypto.randomUUID()
 }
 
 function addBlock() {

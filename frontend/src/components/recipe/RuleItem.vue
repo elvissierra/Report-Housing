@@ -1,11 +1,9 @@
-
-
 <template>
   <v-card class="mb-2 py-2 px-3" variant="outlined" elevation="0" rounded="lg">
     <v-row dense class="align-center">
       <v-col cols="12" md="8">
         <div class="text-subtitle-1">
-          <strong>{{ rule.column }}</strong> — {{ rule.operation }}
+          <strong>{{ local.column }}</strong> — {{ local.operation }}
         </div>
       </v-col>
       <v-col cols="12" md="4" class="d-flex justify-end">
@@ -17,7 +15,7 @@
       <v-col cols="12" md="6" class="d-flex ga-4 py-0">
         <div class="d-flex flex-column align-center">
           <v-switch
-            v-model="rule.options.separateNodes"
+            v-model="local.options.separateNodes"
             inset
             density="compact"
             class="switch-sm"
@@ -28,7 +26,7 @@
         </div>
         <div class="d-flex flex-column align-center">
           <v-switch
-            v-model="rule.options.rootOnly"
+            v-model="local.options.rootOnly"
             inset
             density="compact"
             class="switch-sm"
@@ -40,7 +38,7 @@
       </v-col>
       <v-col cols="12" md="6" class="d-flex justify-end align-center py-0">
         <v-switch
-          v-model="rule.enabled"
+          v-model="local.enabled"
           inset
           density="compact"
           class="switch-sm"
@@ -52,9 +50,9 @@
     </v-row>
 
     <v-row dense class="ga-2 mt-1">
-      <v-col cols="12" md="3" v-if="rule.operation === 'valueCount'">
+      <v-col cols="12" md="3" v-if="local.operation === 'valueCount'">
         <v-text-field
-          v-model="rule.options.value"
+          v-model="local.options.value"
           label="value"
           density="compact"
           clearable
@@ -64,7 +62,7 @@
       </v-col>
       <v-col cols="12" md="3">
         <v-text-field
-          v-model="rule.options.delimiter"
+          v-model="local.options.delimiter"
           label="delimiter"
           clearable
           density="compact"
@@ -91,7 +89,7 @@
     <v-row dense class="ga-2 mt-1">
       <v-col cols="12" md="4">
         <v-select
-          v-model="rule.options.filterColumn"
+          v-model="local.options.filterColumn"
           :items="columnHeaders"
           label="filter column (optional)"
           clearable
@@ -102,7 +100,7 @@
       </v-col>
       <v-col cols="12" md="4">
         <v-text-field
-          v-model="rule.options.filterValue"
+          v-model="local.options.filterValue"
           label="filter value"
           density="compact"
           clearable
@@ -112,8 +110,8 @@
       </v-col>
       <v-col cols="12" md="4">
         <v-select
-          v-model="rule.options.filterOperator"
-          :items="['eq']"
+          v-model="local.options.filterOperator"
+          :items="['eq', 'neq', 'gt', 'lt', 'in', 'not_in', 'contains']"
           label="operator"
           clearable
           hide-details
@@ -143,7 +141,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, reactive, watch } from 'vue'
 import type { Rule } from '../../types/recipe'
 
 const props = defineProps<{ rule: Rule; columnHeaders: string[] }>()
@@ -152,42 +150,47 @@ const emit = defineEmits<{
   (e: 'remove', id: string): void
 }>()
 
-const excludeKeysLocal = ref<string[]>(Array.isArray(props.rule.options.excludeKeys) ? [...props.rule.options.excludeKeys] : [])
+// Local reactive copy — never mutate the prop directly.
+const local = reactive<Rule>({
+  ...props.rule,
+  options: { ...props.rule.options },
+  group_by: [...(props.rule.group_by ?? [])],
+})
 
+// Keep local in sync if the parent replaces the rule object (e.g. after store reset).
 watch(
-  () => props.rule.options.excludeKeys,
-  (next) => {
-    excludeKeysLocal.value = Array.isArray(next) ? [...next] : []
+  () => props.rule,
+  (r) => {
+    Object.assign(local, { ...r, options: { ...r.options }, group_by: [...(r.group_by ?? [])] })
   },
   { deep: true },
 )
 
 const excludeKeysModel = computed<string[]>({
-  get: () => excludeKeysLocal.value,
+  get: () => (Array.isArray(local.options.excludeKeys) ? [...local.options.excludeKeys] : []),
   set: (val) => {
-    excludeKeysLocal.value = Array.isArray(val) ? val : []
+    local.options.excludeKeys = Array.isArray(val) ? val : []
   },
 })
 
 const groupByModel = computed<string[]>({
-  get: () => (Array.isArray((props.rule as any).group_by) ? (props.rule as any).group_by : []),
+  get: () => (Array.isArray(local.group_by) ? local.group_by : []),
   set: (val) => {
-    ;(props.rule as any).group_by = Array.isArray(val) ? val : []
+    local.group_by = Array.isArray(val) ? val : []
   },
 })
 
 function applyExcludeChips() {
-  const arr = excludeKeysLocal.value || []
-  const keys = arr.map((s) => String(s).trim()).filter(Boolean)
-  props.rule.options.excludeKeys = keys
+  const keys = (excludeKeysModel.value ?? []).map((s) => String(s).trim()).filter(Boolean)
+  local.options.excludeKeys = keys
   emitUpdate()
 }
 
 function emitUpdate() {
-  emit('update', props.rule)
+  emit('update', { ...local, options: { ...local.options }, group_by: [...(local.group_by ?? [])] })
 }
 
 function emitRemove() {
-  emit('remove', props.rule.id)
+  emit('remove', local.id)
 }
 </script>

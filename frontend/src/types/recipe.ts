@@ -7,6 +7,8 @@ export type Operation =
   | 'median'
   | 'clean'
 
+export type FilterOperator = 'eq' | 'neq' | 'gt' | 'lt' | 'in' | 'not_in' | 'contains'
+
 export interface RuleOptions {
   delimiter?: string
   separateNodes?: boolean
@@ -15,7 +17,7 @@ export interface RuleOptions {
   value?: string
   filterColumn?: string
   filterValue?: string
-  filterOperator?: 'eq'
+  filterOperator?: FilterOperator
 }
 
 export interface Rule {
@@ -27,17 +29,34 @@ export interface Rule {
   group_by?: string[]
 }
 
+export interface CorrelationBlockConfig {
+  id: string
+  sources: string[]
+  targets: string[]
+  threshold: number
+  enabled: boolean
+}
+
+export interface CrosstabBlockConfig {
+  id: string
+  sources: string[]
+  targets: string[]
+  enabled: boolean
+}
+
 export interface Insights {
   // Correlation config
   sources: string[]
   targets: string[]
   threshold: number
   enabled: boolean
+  extraCorrelationBlocks: CorrelationBlockConfig[]
 
   // Crosstab config
   crosstabSources: string[]
   crosstabTargets: string[]
   crosstabEnabled: boolean
+  extraCrosstabBlocks: CrosstabBlockConfig[]
 }
 
 export interface KeyDriverConfig {

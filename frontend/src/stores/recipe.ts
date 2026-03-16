@@ -13,6 +13,9 @@ import type {
   Recipe,
   Rule,
   Operation,
+  Insights,
+  CorrelationBlockConfig,
+  CrosstabBlockConfig,
   KeyDriverConfig,
   OutlierDetectionConfig,
   SummaryStatsConfig,
@@ -62,14 +65,28 @@ function normalizeRecipe(recipe: Recipe): Recipe {
     metric: recipe.timeSeries?.metric ?? 'sum',
   }
 
-  const normalizedInsights = {
+  const normalizeCorrelationBlock = (b: CorrelationBlockConfig): CorrelationBlockConfig => ({
+    ...b,
+    sources: b.sources.map(normalizeHeaderName),
+    targets: b.targets.map(normalizeHeaderName),
+  })
+
+  const normalizeCrosstabBlock = (b: CrosstabBlockConfig): CrosstabBlockConfig => ({
+    ...b,
+    sources: b.sources.map(normalizeHeaderName),
+    targets: b.targets.map(normalizeHeaderName),
+  })
+
+  const normalizedInsights: Insights = {
     sources: recipe.insights.sources.map(normalizeHeaderName),
     targets: recipe.insights.targets.map(normalizeHeaderName),
     threshold: recipe.insights.threshold,
     enabled: recipe.insights.enabled ?? true,
+    extraCorrelationBlocks: (recipe.insights.extraCorrelationBlocks ?? []).map(normalizeCorrelationBlock),
     crosstabSources: (recipe.insights.crosstabSources ?? []).map(normalizeHeaderName),
     crosstabTargets: (recipe.insights.crosstabTargets ?? []).map(normalizeHeaderName),
     crosstabEnabled: recipe.insights.crosstabEnabled ?? true,
+    extraCrosstabBlocks: (recipe.insights.extraCrosstabBlocks ?? []).map(normalizeCrosstabBlock),
   }
 
   return {
@@ -93,9 +110,11 @@ const DEFAULT_RECIPE: Recipe = {
     targets: [],
     threshold: 0.2,
     enabled: true,
+    extraCorrelationBlocks: [],
     crosstabSources: [],
     crosstabTargets: [],
     crosstabEnabled: true,
+    extraCrosstabBlocks: [],
   },
   keyDriver: {
     enabled: false,
@@ -182,24 +201,8 @@ export const useRecipeStore = defineStore('recipe', {
       this.recipe.rules.splice(Math.max(0, Math.min(toIndex, this.recipe.rules.length)), 0, r)
       save(this.recipe)
     },
-    setInsights(
-      sources: string[],
-      targets: string[],
-      threshold: number,
-      enabled: boolean | undefined,
-      crosstabSources: string[],
-      crosstabTargets: string[],
-      crosstabEnabled: boolean | undefined,
-    ) {
-      this.recipe.insights = {
-        sources,
-        targets,
-        threshold,
-        enabled: enabled ?? this.recipe.insights.enabled ?? true,
-        crosstabSources,
-        crosstabTargets,
-        crosstabEnabled: crosstabEnabled ?? this.recipe.insights.crosstabEnabled ?? true,
-      }
+    patchInsights(patch: Partial<Insights>) {
+      this.recipe.insights = { ...this.recipe.insights, ...patch }
       save(this.recipe)
     },
     exportRecipe(): string {
