@@ -4,8 +4,8 @@ import pytest
 import pandas as pd
 
 # Import the function and schemas to be tested
-from backend.app.analysis.crosstab import run
-from backend.app.schemas import (
+from backend.analysis.crosstab import run
+from backend.schemas import (
     CrosstabAnalysis,
     Filter,
     ReportBlock,

@@ -5,8 +5,8 @@ import pandas as pd
 import numpy as np
 
 # Import the function and schemas to be tested
-from backend.app.analysis.outlier_detection import run
-from backend.app.schemas import OutlierDetectionAnalysis, ReportBlock
+from backend.analysis.outlier_detection import run
+from backend.schemas import OutlierDetectionAnalysis, ReportBlock
 
 
 @pytest.fixture

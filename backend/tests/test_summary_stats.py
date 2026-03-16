@@ -5,8 +5,8 @@ import pandas as pd
 import numpy as np
 
 # Import the specific function and schemas we are testing
-from backend.app.analysis.summary_stats import run
-from backend.app.schemas import (
+from backend.analysis.summary_stats import run
+from backend.schemas import (
     SummaryStatsAnalysis,
     Filter,
     ReportBlock,

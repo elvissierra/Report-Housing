@@ -1,6 +1,6 @@
 import pandas as pd
 import schemas
-from .helpers import prepare_data_groups, format_group_name, apply_transformations
+from .helpers import prepare_data_groups, format_group_name
 
 
 ALLOWED_TRANSFORMATIONS = {"split_and_explode", "strip_whitespace"}
@@ -32,10 +32,23 @@ def run(df: pd.DataFrame, step: schemas.CrosstabAnalysis) -> schemas.ReportBlock
 
         if step.column_transformations:
             for col_trans in step.column_transformations:
-                if col_trans.column_name in working_df.columns:
-                    working_df[col_trans.column_name] = apply_transformations(
-                        working_df[col_trans.column_name], col_trans.transformations, []
-                    )
+                if col_trans.column_name not in working_df.columns:
+                    continue
+                for trans in col_trans.transformations:
+                    if trans.action == "split_and_explode":
+                        delimiter = trans.params.get("delimiter", ",")
+                        # Produce list values so working_df.explode() below can expand rows.
+                        # Do NOT call .explode() here — that returns scalars with repeated
+                        # indices which pandas cannot assign back to the DataFrame correctly.
+                        working_df[col_trans.column_name] = (
+                            working_df[col_trans.column_name]
+                            .astype(str)
+                            .str.split(delimiter)
+                        )
+                    elif trans.action == "strip_whitespace":
+                        working_df[col_trans.column_name] = (
+                            working_df[col_trans.column_name].astype(str).str.strip()
+                        )
 
         working_df = (
             working_df.explode(step.index_column)

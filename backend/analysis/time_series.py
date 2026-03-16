@@ -190,7 +190,11 @@ def run(df: pd.DataFrame, step: schemas.TimeSeriesAnalysis) -> schemas.ReportBlo
             if pd.api.types.is_datetime64_any_dtype(raw_df["Timestamp"]):
                 raw_df["Timestamp"] = raw_df["Timestamp"].dt.date
         except Exception:
-            pass
+            logger.debug(
+                "Could not convert Timestamp column to date for step '%s'.",
+                step.output_name,
+                exc_info=True,
+            )
 
         pretty_rows: list[dict] = []
 

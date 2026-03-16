@@ -175,7 +175,7 @@ const bundleName = ref<string>('generated_report')
 const logicReference = ref<InstanceType<typeof LogicReference> | null>(null)
 
 const operations: Operation[] = ['distribution', 'valueCount', 'duplicate', 'average', 'sum', 'median', 'clean']
-const frequencies = ['D', 'W', 'M']
+const frequencies = ['D', 'W', 'ME', 'QE', 'YE']
 const timeSeriesMetrics: Array<'sum' | 'average' | 'count'> = ['sum', 'average', 'count']
 
 const keyDriver = computed({

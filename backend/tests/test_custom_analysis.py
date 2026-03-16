@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 
 # Import the NEW, refactored helper functions from their correct location
-from backend.app.analysis.custom import (
+from backend.analysis.operations import (
     _op_average,
     _op_duplicate_count,
     _op_distribution,

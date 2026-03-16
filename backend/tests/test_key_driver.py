@@ -5,8 +5,8 @@ import pandas as pd
 import numpy as np
 
 # Import the function and schemas to be tested
-from backend.app.analysis.key_driver import run
-from backend.app.schemas import KeyDriverAnalysis, Filter, ReportBlock
+from backend.analysis.key_driver import run
+from backend.schemas import KeyDriverAnalysis, Filter, ReportBlock
 
 
 @pytest.fixture

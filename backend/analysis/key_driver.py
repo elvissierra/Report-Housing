@@ -1,8 +1,11 @@
+import logging
 import pandas as pd
 import numpy as np
 import statsmodels.api as sm
 import schemas
 from .helpers import prepare_data_groups, format_group_name
+
+logger = logging.getLogger(__name__)
 
 
 def run(df: pd.DataFrame, step: schemas.KeyDriverAnalysis) -> schemas.ReportBlock:
@@ -123,7 +126,12 @@ def run(df: pd.DataFrame, step: schemas.KeyDriverAnalysis) -> schemas.ReportBloc
             all_results_dfs.append(final_group_df)
 
         except Exception:
-            # If this group's regression fails, skip it but keep other groups
+            logger.error(
+                "Key driver regression failed for group '%s' in step '%s'.",
+                formatted_group_name,
+                step.output_name,
+                exc_info=True,
+            )
             continue
 
     # Final assembly & layout normalization

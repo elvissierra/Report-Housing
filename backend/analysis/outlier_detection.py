@@ -91,39 +91,39 @@ def run(
                     }
                 )
 
-        if not outlier_records:
-            final_df = pd.DataFrame(
-                columns=["Column", "Original Row Index", "Outlier Value", "Method"]
+    if not outlier_records:
+        final_df = pd.DataFrame(
+            columns=["Column", "Original Row Index", "Outlier Value", "Method"]
+        )
+    else:
+        raw_df = pd.DataFrame(outlier_records)
+
+        if "Group" in raw_df.columns:
+            raw_df = raw_df.drop(columns=["Group"])
+
+        raw_df = raw_df[["Column", "Original Row Index", "Outlier Value", "Method"]]
+
+        pretty_rows: list[dict] = []
+        for col_name, sub in raw_df.groupby("Column", sort=False):
+            pretty_rows.append(
+                {
+                    "Column": col_name,
+                    "Original Row Index": pd.NA,
+                    "Outlier Value": pd.NA,
+                    "Method": "",
+                }
             )
-        else:
-            raw_df = pd.DataFrame(outlier_records)
 
-            if "Group" in raw_df.columns:
-                raw_df = raw_df.drop(columns=["Group"])
-
-            raw_df = raw_df[["Column", "Original Row Index", "Outlier Value", "Method"]]
-
-            pretty_rows: list[dict] = []
-            for col_name, sub in raw_df.groupby("Column", sort=False):
+            for _, r in sub.iterrows():
                 pretty_rows.append(
                     {
-                        "Column": col_name,
-                        "Original Row Index": pd.NA,
-                        "Outlier Value": pd.NA,
-                        "Method": "",
+                        "Column": "",
+                        "Original Row Index": r["Original Row Index"],
+                        "Outlier Value": r["Outlier Value"],
+                        "Method": r["Method"],
                     }
                 )
 
-                for _, r in sub.iterrows():
-                    pretty_rows.append(
-                        {
-                            "Column": "",
-                            "Original Row Index": r["Original Row Index"],
-                            "Outlier Value": r["Outlier Value"],
-                            "Method": r["Method"],
-                        }
-                    )
+        final_df = pd.DataFrame(pretty_rows)
 
-            final_df = pd.DataFrame(pretty_rows)
-
-        return schemas.ReportBlock(title=step.output_name, data=final_df)
+    return schemas.ReportBlock(title=step.output_name, data=final_df)

@@ -5,8 +5,8 @@ import pandas as pd
 import numpy as np
 
 # Import the function and schemas to be tested
-from backend.app.analysis.time_series import run
-from backend.app.schemas import TimeSeriesAnalysis, Filter, ReportBlock
+from backend.analysis.time_series import run
+from backend.schemas import TimeSeriesAnalysis, ReportBlock
 
 
 @pytest.fixture

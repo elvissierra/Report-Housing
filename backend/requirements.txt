@@ -32,4 +32,5 @@ SQLAlchemy==2.0.44
 # === Development Tools ===
 # Ruff is a code linter, not strictly needed for the app to run
 ruff==0.6.9
+alembic
 

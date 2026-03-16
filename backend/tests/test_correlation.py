@@ -5,8 +5,8 @@ import pandas as pd
 import numpy as np
 
 # Import the function and schemas to be tested
-from backend.app.analysis.correlation import run
-from backend.app.schemas import CorrelationAnalysis, Filter, ReportBlock
+from backend.analysis.correlation import run
+from backend.schemas import CorrelationAnalysis, Filter, ReportBlock
 
 
 @pytest.fixture

@@ -1085,7 +1085,7 @@ const operations: Operation[] = [
   'clean',
 ]
 
-const frequencies = ['D', 'W', 'M']
+const frequencies = ['D', 'W', 'ME', 'QE', 'YE']
 const timeSeriesMetrics: Array<'sum' | 'average' | 'count'> = ['sum', 'average', 'count']
 
 const keyDriver = computed({

@@ -3,15 +3,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 import os
-from database import Base, engine
-import models
+import models  # noqa: F401 — registers ORM models
 from routers import reports
 
 app = FastAPI(title="Report Auto API")
 
-# Bootstrap ORM tables for the initial persistence milestone.
-# This keeps iteration simple before Alembic is introduced.
-Base.metadata.create_all(bind=engine)
+# Schema is managed by Alembic. Run `alembic upgrade head` before starting the server.
+# In Docker this is handled by the entrypoint command in docker-compose.yml.
 
 # --- CORS from env ---
 raw_origins = os.getenv(

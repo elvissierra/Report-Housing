@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import select
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
 from fastapi.responses import StreamingResponse, Response, PlainTextResponse
@@ -20,14 +20,24 @@ from sqlalchemy.orm import Session, selectinload
 
 router = APIRouter()
 
+# 50 MB — large enough for real-world CSVs, small enough to prevent DoS.
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+
 
 @router.get("/runs/", tags=["Reports"])
-def list_report_runs(db: Session = Depends(get_db)):
+def list_report_runs(
+    limit: int = 50,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+):
     """
     Return a lightweight run-history view so persistence can be inspected
     from the API without touching the database directly.
+
+    Paginate with `limit` (max 200) and `offset`.
     """
-    stmt = select(ReportRun).order_by(ReportRun.created_at.desc())
+    limit = min(limit, 200)
+    stmt = select(ReportRun).order_by(ReportRun.created_at.desc()).limit(limit).offset(offset)
     runs = db.execute(stmt).scalars().all()
 
     return [
@@ -404,6 +414,13 @@ async def extract_headers(file: UploadFile = File(...)):
 
     try:
         raw = await file.read()
+
+        if len(raw) > MAX_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File too large. Maximum allowed size is {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.",
+            )
+
         buffer = BytesIO(raw)
 
         lowered = filename.lower()
@@ -425,8 +442,8 @@ async def extract_headers(file: UploadFile = File(...)):
 
     except HTTPException:
         raise
-    except Exception as exc:
-        # You can log exc here
+    except Exception:
+        logging.exception("Failed to extract headers from uploaded file.")
         raise HTTPException(
             status_code=500, detail="Failed to parse headers from file."
         )
@@ -452,23 +469,34 @@ async def generate_report_endpoint(
         request_payload=request_data.model_dump(mode="json"),
         total_steps=len(request_data.analysis_steps),
         completed_steps=0,
-        started_at=datetime.utcnow(),
+        started_at=datetime.now(timezone.utc),
     )
     db.add(run)
     db.commit()
     db.refresh(run)
 
     try:
-        input_df = load_tabular_data(input_file.file, input_file.filename)
+        raw_bytes = await input_file.read()
+        if len(raw_bytes) > MAX_UPLOAD_BYTES:
+            run.status = "failed"
+            run.error_message = "Uploaded file exceeds maximum allowed size."
+            run.finished_at = datetime.now(timezone.utc)
+            db.commit()
+            raise HTTPException(
+                status_code=413,
+                detail=f"File too large. Maximum allowed size is {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.",
+            )
+
+        input_df = load_tabular_data(BytesIO(raw_bytes), input_file.filename)
         run.input_row_count = len(input_df.index)
         run.input_column_count = len(input_df.columns)
-        blocks = list(run_dynamic_analysis(input_df, request_data))
 
         report_blocks: list[schemas.ReportBlock] = []
         insight_blocks: list[schemas.ReportBlock] = []
+        completed_steps = 0
 
-        for index, block in enumerate(blocks, start=1):
-            step_finished_at = datetime.utcnow()
+        for index, block in enumerate(run_dynamic_analysis(input_df, request_data), start=1):
+            step_finished_at = datetime.now(timezone.utc)
             title_lower = block.title.lower()
             step = request_data.analysis_steps[index - 1]
             is_error_block = title_lower.startswith("error in step:")
@@ -507,6 +535,7 @@ async def generate_report_endpoint(
                 ),
             )
             db.add(step_result)
+            completed_steps += 1
 
         report_body = _render_category(report_blocks)
         insights_body = _render_insights(insight_blocks)
@@ -587,8 +616,8 @@ async def generate_report_endpoint(
         )
 
         run.status = "success"
-        run.completed_steps = len(blocks)
-        run.finished_at = datetime.utcnow()
+        run.completed_steps = completed_steps
+        run.finished_at = datetime.now(timezone.utc)
         run.duration_seconds = (
             (run.finished_at - run.started_at).total_seconds()
             if run.started_at and run.finished_at
@@ -606,20 +635,17 @@ async def generate_report_endpoint(
                 "X-Report-Run-Id": run.id,
             },
         )
+    except HTTPException:
+        raise
     except Exception as e:
         run.status = "failed"
         run.error_message = str(e)
-        run.finished_at = datetime.utcnow()
+        run.finished_at = datetime.now(timezone.utc)
         db.commit()
 
         logging.exception("Error in generate_report_endpoint")
         return Response(
-            content=json.dumps(
-                {
-                    "detail": "An unexpected internal error occurred.",
-                    "error": str(e),
-                }
-            ),
+            content=json.dumps({"detail": "An unexpected internal error occurred."}),
             status_code=500,
             media_type="application/json",
         )

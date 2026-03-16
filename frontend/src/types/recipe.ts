@@ -65,7 +65,7 @@ export interface TimeSeriesConfig {
   enabled: boolean
   date_column: string | null
   metric_column: string | null
-  frequency: 'D' | 'W' | 'M'
+  frequency: 'D' | 'W' | 'ME' | 'QE' | 'YE'
   metric: 'sum' | 'average' | 'count'
 }
 
