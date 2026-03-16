@@ -12,6 +12,7 @@ ALLOWED_TRANSFORMATIONS = {
     "fill_na",
     "split_and_explode",
     "strip_whitespace",
+    "to_root_node",
 }
 
 

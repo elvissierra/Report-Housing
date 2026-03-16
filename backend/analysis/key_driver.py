@@ -1,6 +1,5 @@
 import logging
 import pandas as pd
-import numpy as np
 import statsmodels.api as sm
 import schemas
 from .helpers import prepare_data_groups, format_group_name
@@ -115,8 +114,8 @@ def run(df: pd.DataFrame, step: schemas.KeyDriverAnalysis) -> schemas.ReportBloc
                     {
                         "Feature": "R-squared",
                         "Coefficient": round(model.rsquared, 2),
-                        "Standard Error": np.nan,
-                        "P-value": np.nan,
+                        "Standard Error": pd.NA,
+                        "P-value": pd.NA,
                         "Group": formatted_group_name,
                     }
                 ]

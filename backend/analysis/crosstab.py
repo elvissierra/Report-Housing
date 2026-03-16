@@ -3,7 +3,7 @@ import schemas
 from .helpers import prepare_data_groups, format_group_name
 
 
-ALLOWED_TRANSFORMATIONS = {"split_and_explode", "strip_whitespace", "fill_na"}
+ALLOWED_TRANSFORMATIONS = {"split_and_explode", "strip_whitespace", "fill_na", "to_root_node"}
 
 
 def run(df: pd.DataFrame, step: schemas.CrosstabAnalysis) -> schemas.ReportBlock:

@@ -124,7 +124,7 @@ const DEFAULT_RECIPE: Recipe = {
   },
 }
 
-function uid() { return Math.random().toString(36).slice(2, 10) }
+function uid() { return crypto.randomUUID() }
 
 export const useRecipeStore = defineStore('recipe', {
   state: () => ({
@@ -246,8 +246,12 @@ export const useRecipeStore = defineStore('recipe', {
 function load(): Recipe {
   const raw = localStorage.getItem('recipe.v1')
   if (!raw) return DEFAULT_RECIPE
-  const parsed = JSON.parse(raw) as Recipe
-  return normalizeRecipe(parsed)
+  try {
+    const parsed = JSON.parse(raw) as Recipe
+    return normalizeRecipe(parsed)
+  } catch {
+    return DEFAULT_RECIPE
+  }
 }
 function save(r: Recipe) {
   localStorage.setItem('recipe.v1', JSON.stringify(r))

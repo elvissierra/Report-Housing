@@ -259,8 +259,8 @@ function onImport(e: Event) {
   reader.onload = () => {
     try {
       store.importRecipe(String(reader.result))
-    } catch {
-      alert('Invalid recipe.json')
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Invalid recipe.json')
     }
   }
   reader.readAsText(files[0])

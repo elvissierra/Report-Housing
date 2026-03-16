@@ -5,6 +5,7 @@ from fastapi.responses import StreamingResponse, Response, PlainTextResponse
 from utils.definitions import get_all_definitions_as_text
 from pydantic import ValidationError
 import json
+import urllib.parse
 import pandas as pd
 import logging
 from io import BytesIO
@@ -631,7 +632,10 @@ async def generate_report_endpoint(
             zip_buf,
             media_type="application/zip",
             headers={
-                "Content-Disposition": f'attachment; filename="{out_name}"',
+                "Content-Disposition": (
+                f'attachment; filename="{out_name.encode("ascii", errors="replace").decode()}";'
+                f" filename*=UTF-8''{urllib.parse.quote(out_name)}"
+            ),
                 "X-Report-Run-Id": run.id,
             },
         )

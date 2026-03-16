@@ -1209,7 +1209,7 @@ function onImport(e: Event) {
   const reader = new FileReader()
   reader.onload = () => {
     try { store.importRecipe(String(reader.result)) }
-    catch (e) { alert('Invalid recipe.json') }
+    catch (e) { alert(e instanceof Error ? e.message : 'Invalid recipe.json') }
   }
   reader.readAsText(files[0])
 }
