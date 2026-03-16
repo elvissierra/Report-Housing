@@ -89,7 +89,17 @@ class OutlierDetectionAnalysis(BaseAnalysis):
     type: Literal["outlier_detection"] = "outlier_detection"
     target_columns: Annotated[List[str], Field(min_length=1)]
     method: Literal["iqr", "z-score"] = "iqr"
-    threshold: float = Field(1.5, gt=0)
+    threshold: float = Field(
+        1.5,
+        gt=0,
+        description=(
+            "IQR method: multiplier applied to the interquartile range "
+            "(default 1.5 — values outside Q1 - 1.5×IQR or Q3 + 1.5×IQR are outliers; "
+            "higher values are more lenient). "
+            "Z-score method: number of standard deviations from the mean "
+            "(default 1.5 — values beyond ±1.5σ are outliers; higher is more lenient)."
+        ),
+    )
 
 
 class KeyDriverAnalysis(BaseAnalysis):
@@ -110,7 +120,13 @@ class KeyDriverAnalysis(BaseAnalysis):
         default=0.05,
         gt=0,
         le=1,
-        description="P-value threshold for a feature to be considered a 'significant' driver.",
+        description=(
+            "Maximum p-value for a feature to be included in results (0–1). Features "
+            "with p-value >= threshold are excluded as statistically non-significant. "
+            "Default 0.05 — lower values require stronger evidence of significance. "
+            "Note: unlike OutlierDetection and Correlation thresholds (where higher "
+            "values are more lenient), a lower p_value_threshold is more restrictive."
+        ),
     )
 
     # --- NEW: POWER-USER FEATURE ---
@@ -131,8 +147,15 @@ class TimeSeriesAnalysis(BaseAnalysis):
 
 class CorrelationAnalysis(BaseAnalysis):
     type: Literal["correlation"] = "correlation"
-    columns: Annotated[List[str], Field(min_length=2)]  # Corrected syntax
-    threshold: float = Field(0.2)
+    columns: Annotated[List[str], Field(min_length=2)]
+    threshold: float = Field(
+        0.2,
+        description=(
+            "Minimum absolute correlation value (0–1) required to include a pair in "
+            "results. Pairs whose absolute value falls below this threshold are filtered "
+            "out. Default 0.2 — raise to surface only stronger relationships."
+        ),
+    )
 
 
 # --- THE MAIN REQUEST BODY ---

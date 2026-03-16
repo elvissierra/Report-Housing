@@ -9,6 +9,14 @@ from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 DEFAULT_DATABASE_URL = "sqlite:///./ra_runs.db"
 DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_DATABASE_URL)
 
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+if ENVIRONMENT == "production" and DATABASE_URL.startswith("sqlite"):
+    raise RuntimeError(
+        "SQLite cannot be used in production. "
+        "Set DATABASE_URL to a PostgreSQL connection string, "
+        "e.g. postgresql://user:pass@host/dbname"
+    )
+
 
 def _is_sqlite(url: str) -> bool:
     return url.startswith("sqlite")

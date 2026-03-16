@@ -52,6 +52,14 @@ def run(df: pd.DataFrame, step: schemas.CorrelationAnalysis) -> schemas.ReportBl
         formatted_group_name = format_group_name(group_name)
         column_pairs = list(itertools.combinations(step.columns, 2))
 
+        # Pre-compute categorical classification once per column per group
+        # rather than re-checking dtype on every pair.
+        col_is_categorical: dict[str, bool] = {
+            col: is_categorical(group_df[col])
+            for col in step.columns
+            if col in group_df.columns
+        }
+
         for col1_name, col2_name in column_pairs:
             if col1_name not in group_df.columns or col2_name not in group_df.columns:
                 continue
@@ -62,8 +70,8 @@ def run(df: pd.DataFrame, step: schemas.CorrelationAnalysis) -> schemas.ReportBl
             if aligned_col1.empty:
                 continue
 
-            is_col1_cat = is_categorical(aligned_col1)
-            is_col2_cat = is_categorical(aligned_col2)
+            is_col1_cat = col_is_categorical[col1_name]
+            is_col2_cat = col_is_categorical[col2_name]
 
             if not is_col1_cat and not is_col2_cat:
                 # Numeric–numeric: Pearson

@@ -3,7 +3,7 @@ import schemas
 from .helpers import prepare_data_groups, format_group_name
 
 
-ALLOWED_TRANSFORMATIONS = {"split_and_explode", "strip_whitespace"}
+ALLOWED_TRANSFORMATIONS = {"split_and_explode", "strip_whitespace", "fill_na"}
 
 
 def run(df: pd.DataFrame, step: schemas.CrosstabAnalysis) -> schemas.ReportBlock:
@@ -48,6 +48,11 @@ def run(df: pd.DataFrame, step: schemas.CrosstabAnalysis) -> schemas.ReportBlock
                     elif trans.action == "strip_whitespace":
                         working_df[col_trans.column_name] = (
                             working_df[col_trans.column_name].astype(str).str.strip()
+                        )
+                    elif trans.action == "fill_na":
+                        fill_value = trans.params.get("value", "")
+                        working_df[col_trans.column_name] = (
+                            working_df[col_trans.column_name].fillna(fill_value)
                         )
 
         working_df = (

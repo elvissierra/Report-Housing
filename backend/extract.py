@@ -3,6 +3,11 @@ import csv
 import pandas as pd
 from typing import IO, Any
 
+# Pre-compiled patterns used by _normalize_column_name — compiled once at import time.
+_RE_WHITESPACE = re.compile(r"\s+")
+_RE_NON_WORD = re.compile(r"[^\w]+")
+_RE_MULTI_UNDERSCORE = re.compile(r"_+")
+
 # Define specific pandas errors to catch
 from pandas.errors import ParserError, EmptyDataError
 
@@ -39,10 +44,10 @@ def _normalize_column_name(name: str) -> str:
     - collapse multiple underscores and trim them from the ends
     """
     name = str(name).strip()
-    name = re.sub(r"\s+", " ", name)
+    name = _RE_WHITESPACE.sub(" ", name)
     name = name.lower()
-    name = re.sub(r"[^\w]+", "_", name)
-    name = re.sub(r"_+", "_", name)
+    name = _RE_NON_WORD.sub("_", name)
+    name = _RE_MULTI_UNDERSCORE.sub("_", name)
     name = name.strip("_")
     return name
 
@@ -134,4 +139,5 @@ def load_tabular_data(file_object: IO[Any], filename: str) -> pd.DataFrame:
 
     if df.empty:
         raise ValueError("The uploaded file is empty or contains no data.")
-    return _clean_dataframe(df.copy())
+    # _normalize_headers (called inside _clean_dataframe) already copies the DataFrame.
+    return _clean_dataframe(df)

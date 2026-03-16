@@ -67,13 +67,9 @@ function normalizeRecipe(recipe: Recipe): Recipe {
     targets: recipe.insights.targets.map(normalizeHeaderName),
     threshold: recipe.insights.threshold,
     enabled: recipe.insights.enabled ?? true,
-    crosstabSources: (recipe.insights as any).crosstabSources
-      ? (recipe.insights as any).crosstabSources.map(normalizeHeaderName)
-      : [],
-    crosstabTargets: (recipe.insights as any).crosstabTargets
-      ? (recipe.insights as any).crosstabTargets.map(normalizeHeaderName)
-      : [],
-    crosstabEnabled: (recipe.insights as any).crosstabEnabled ?? true,
+    crosstabSources: (recipe.insights.crosstabSources ?? []).map(normalizeHeaderName),
+    crosstabTargets: (recipe.insights.crosstabTargets ?? []).map(normalizeHeaderName),
+    crosstabEnabled: recipe.insights.crosstabEnabled ?? true,
   }
 
   return {
@@ -218,8 +214,25 @@ export const useRecipeStore = defineStore('recipe', {
       return json
     },
     importRecipe(jsonText: string) {
-      const obj = JSON.parse(jsonText)
-      this.recipe = normalizeRecipe(obj)
+      let obj: unknown
+      try {
+        obj = JSON.parse(jsonText)
+      } catch {
+        throw new Error('Invalid recipe file: could not parse JSON.')
+      }
+      if (
+        typeof obj !== 'object' ||
+        obj === null ||
+        !('version' in obj) ||
+        !('columnHeaders' in obj) ||
+        !('rules' in obj) ||
+        !('insights' in obj)
+      ) {
+        throw new Error(
+          'Invalid recipe file: missing required fields (version, columnHeaders, rules, insights).'
+        )
+      }
+      this.recipe = normalizeRecipe(obj as Recipe)
       save(this.recipe)
     },
     resetRecipe() {
