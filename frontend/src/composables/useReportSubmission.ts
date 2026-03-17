@@ -29,8 +29,23 @@ const OPERATION_MAP: Record<Operation, CustomAnalysis['operation']> = {
 }
 
 function buildTransformations(r: Rule): Transformation[] {
+  // 1. Always strip whitespace first so subsequent scripts work on clean values.
   const out: Transformation[] = [{ action: 'strip_whitespace', params: {} }]
 
+  // 2. User-selected pre-processing scripts, in selection order.
+  //    deduplicate_within_cell uses the rule's delimiter (defaults to '|' on backend).
+  for (const script of r.customScripts ?? []) {
+    if (script === 'remove_special_chars') {
+      out.push({ action: 'remove_special_chars', params: {} })
+    } else if (script === 'deduplicate_within_cell') {
+      out.push({
+        action: 'deduplicate_within_cell',
+        params: r.options.delimiter ? { delimiter: r.options.delimiter } : {},
+      })
+    }
+  }
+
+  // 3. Structural transforms (split/root) run after per-cell cleanup.
   if (r.options.delimiter) {
     if (r.options.separateNodes) {
       out.push({ action: 'split_and_explode', params: { delimiter: r.options.delimiter } })
@@ -39,6 +54,7 @@ function buildTransformations(r: Rule): Transformation[] {
     }
   }
 
+  // 4. Numeric coercion last, only when the operation needs it.
   if (r.operation === 'average' || r.operation === 'sum' || r.operation === 'median') {
     out.push({ action: 'to_numeric', params: {} })
   }
@@ -70,7 +86,7 @@ function buildCustomSteps(rules: Rule[]): CustomAnalysis[] {
     .filter((r) => r.enabled)
     .map((r) => ({
       type: 'custom' as const,
-      output_name: `${r.column} — ${r.operation}`,
+      output_name: r.label?.trim() || `${r.column} — ${r.operation}`,
       filters: buildFilters(r),
       group_by: Array.isArray(r.group_by) ? r.group_by : [],
       target_columns: [r.column],

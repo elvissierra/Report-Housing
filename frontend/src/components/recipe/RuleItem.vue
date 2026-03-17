@@ -3,11 +3,25 @@
     <v-row dense class="align-center">
       <v-col cols="12" md="8">
         <div class="text-subtitle-1">
-          <strong>{{ local.column }}</strong> — {{ local.operation }}
+          <strong>{{ local.label || local.column }}</strong>
+          <span class="text-medium-emphasis ml-1">— {{ local.operation }}</span>
         </div>
       </v-col>
       <v-col cols="12" md="4" class="d-flex justify-end">
         <v-btn icon="mdi-delete" variant="text" @click="emitRemove" />
+      </v-col>
+    </v-row>
+
+    <v-row dense class="mt-1">
+      <v-col cols="12">
+        <v-text-field
+          v-model="local.label"
+          label="rule name (optional)"
+          density="compact"
+          clearable
+          hide-details
+          @blur="emitUpdate"
+        />
       </v-col>
     </v-row>
 
@@ -46,6 +60,26 @@
           @update:modelValue="emitUpdate"
         />
         <span class="text-caption ml-2">enabled</span>
+      </v-col>
+    </v-row>
+
+    <v-row dense class="mt-1">
+      <v-col cols="12">
+        <v-select
+          v-model="customScriptsModel"
+          :items="CUSTOM_SCRIPT_OPTIONS"
+          item-title="label"
+          item-value="value"
+          label="pre-processing scripts (optional)"
+          multiple
+          chips
+          :chip-props="{ size: 'small' }"
+          closable-chips
+          clearable
+          hide-details
+          density="compact"
+          @update:modelValue="emitUpdate"
+        />
       </v-col>
     </v-row>
 
@@ -142,7 +176,12 @@
 
 <script setup lang="ts">
 import { computed, reactive, watch } from 'vue'
-import type { Rule } from '../../types/recipe'
+import type { Rule, CustomScript } from '../../types/recipe'
+
+const CUSTOM_SCRIPT_OPTIONS: { value: CustomScript; label: string }[] = [
+  { value: 'remove_special_chars', label: 'Remove special characters' },
+  { value: 'deduplicate_within_cell', label: 'Deduplicate within cell' },
+]
 
 const props = defineProps<{ rule: Rule; columnHeaders: string[] }>()
 const emit = defineEmits<{
@@ -155,16 +194,29 @@ const local = reactive<Rule>({
   ...props.rule,
   options: { ...props.rule.options },
   group_by: [...(props.rule.group_by ?? [])],
+  customScripts: [...(props.rule.customScripts ?? [])],
 })
 
 // Keep local in sync if the parent replaces the rule object (e.g. after store reset).
 watch(
   () => props.rule,
   (r) => {
-    Object.assign(local, { ...r, options: { ...r.options }, group_by: [...(r.group_by ?? [])] })
+    Object.assign(local, {
+      ...r,
+      options: { ...r.options },
+      group_by: [...(r.group_by ?? [])],
+      customScripts: [...(r.customScripts ?? [])],
+    })
   },
   { deep: true },
 )
+
+const customScriptsModel = computed<CustomScript[]>({
+  get: () => (Array.isArray(local.customScripts) ? [...local.customScripts] : []),
+  set: (val) => {
+    local.customScripts = Array.isArray(val) ? val : []
+  },
+})
 
 const excludeKeysModel = computed<string[]>({
   get: () => (Array.isArray(local.options.excludeKeys) ? [...local.options.excludeKeys] : []),
@@ -187,7 +239,12 @@ function applyExcludeChips() {
 }
 
 function emitUpdate() {
-  emit('update', { ...local, options: { ...local.options }, group_by: [...(local.group_by ?? [])] })
+  emit('update', {
+    ...local,
+    options: { ...local.options },
+    group_by: [...(local.group_by ?? [])],
+    customScripts: [...(local.customScripts ?? [])],
+  })
 }
 
 function emitRemove() {

@@ -1,5 +1,8 @@
+import logging
 import pandas as pd
 import schemas
+
+logger = logging.getLogger(__name__)
 from .helpers import prepare_data_groups, format_group_name
 
 

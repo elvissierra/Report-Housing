@@ -28,7 +28,13 @@ class Filter(BaseModel):
 # These actions are used within a `Transformation` object to manipulate the
 # data in a column *before* the final analysis operation is performed.
 TransformationAction = Literal[
-    "split_and_explode", "to_root_node", "strip_whitespace", "to_numeric", "fill_na"
+    "split_and_explode",
+    "to_root_node",
+    "strip_whitespace",
+    "to_numeric",
+    "fill_na",
+    "remove_special_chars",
+    "deduplicate_within_cell",
 ]
 
 

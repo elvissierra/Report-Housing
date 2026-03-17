@@ -9,6 +9,8 @@ export type Operation =
 
 export type FilterOperator = 'eq' | 'neq' | 'gt' | 'lt' | 'in' | 'not_in' | 'contains'
 
+export type CustomScript = 'remove_special_chars' | 'deduplicate_within_cell'
+
 export interface RuleOptions {
   delimiter?: string
   separateNodes?: boolean
@@ -22,11 +24,13 @@ export interface RuleOptions {
 
 export interface Rule {
   id: string
+  label: string
   column: string
   operation: Operation
   options: RuleOptions
   enabled: boolean
   group_by?: string[]
+  customScripts: CustomScript[]
 }
 
 export interface CorrelationBlockConfig {

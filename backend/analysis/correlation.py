@@ -1,7 +1,10 @@
+import logging
 import pandas as pd
 import numpy as np
 import itertools
 import schemas
+
+logger = logging.getLogger(__name__)
 from .helpers import prepare_data_groups, format_group_name, cramers_v, is_categorical
 
 

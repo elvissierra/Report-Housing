@@ -91,6 +91,21 @@ def apply_transformations(
             s = pd.to_numeric(s, errors="coerce")
         elif action == "fill_na":
             s = s.fillna(params.get("value", 0))
+        elif action == "remove_special_chars":
+            # Strip every character that is not alphanumeric, whitespace, or underscore.
+            s = s.astype(str).str.replace(r"[^\w\s]", "", regex=True)
+        elif action == "deduplicate_within_cell":
+            # Split each cell by delimiter, remove duplicate entries (case-sensitive),
+            # then rejoin with the same delimiter.
+            delimiter = params.get("delimiter", "|")
+            def _dedup(val: str) -> str:
+                parts = [p.strip() for p in val.split(delimiter)]
+                seen: list[str] = []
+                for p in parts:
+                    if p and p not in seen:
+                        seen.append(p)
+                return f" {delimiter} ".join(seen)
+            s = s.astype(str).apply(_dedup)
 
     if post_filters:
         for f in post_filters:

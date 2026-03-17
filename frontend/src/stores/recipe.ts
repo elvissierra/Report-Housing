@@ -18,7 +18,9 @@ function normalizeRecipe(recipe: Recipe): Recipe {
 
   const normalizedRules = recipe.rules.map((r) => ({
     ...r,
+    label: r.label ?? '',
     column: normalizeHeaderName(r.column),
+    customScripts: r.customScripts ?? [],
   }))
 
   const normalizedKeyDriver: KeyDriverConfig = {
@@ -155,6 +157,7 @@ export const useRecipeStore = defineStore('recipe', {
     addRule(column: string, operation: Operation) {
       const r: Rule = {
         id: uid(),
+        label: '',
         column,
         operation,
         options: {
@@ -168,7 +171,8 @@ export const useRecipeStore = defineStore('recipe', {
           filterOperator: 'eq',
         },
         enabled: true,
-        group_by:[],
+        group_by: [],
+        customScripts: [],
       }
       this.recipe.rules.push(r)
       save(this.recipe)
