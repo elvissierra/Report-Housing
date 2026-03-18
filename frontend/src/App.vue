@@ -321,11 +321,24 @@
                   <v-row dense class="align-center">
                     <v-col cols="12" md="8">
                       <div class="text-subtitle-1">
-                        <strong>{{ r.column }}</strong> — {{ r.operation }}
+                        <strong>{{ r.label || r.column }}</strong>
+                        <span class="text-medium-emphasis ml-1">— {{ r.operation }}</span>
                       </div>
                     </v-col>
                     <v-col cols="12" md="4" class="d-flex justify-end">
                       <v-btn icon="mdi-delete" variant="text" @click="remove(r.id)" />
+                    </v-col>
+                  </v-row>
+                  <v-row dense class="mt-1">
+                    <v-col cols="12">
+                      <v-text-field
+                        v-model="r.label"
+                        label="rule name (optional)"
+                        density="compact"
+                        clearable
+                        hide-details
+                        @blur="update(r)"
+                      />
                     </v-col>
                   </v-row>
                   <v-row dense class="align-center mb-1">
@@ -356,6 +369,28 @@
                     <v-col cols="12" md="6" class="d-flex justify-end align-center py-0">
                       <v-switch v-model="r.enabled" inset density="compact" class="switch-sm" @update:modelValue="update(r)" />
                       <span class="text-caption ml-2">enabled</span>
+                    </v-col>
+                  </v-row>
+                  <v-row dense class="mt-1">
+                    <v-col cols="12">
+                      <v-select
+                        v-model="r.customScripts"
+                        :items="[
+                          { value: 'remove_special_chars', title: 'Remove special characters' },
+                          { value: 'deduplicate_within_cell', title: 'Deduplicate within cell' },
+                        ]"
+                        item-title="title"
+                        item-value="value"
+                        label="pre-processing scripts (optional)"
+                        multiple
+                        chips
+                        :chip-props="{ size: 'small' }"
+                        closable-chips
+                        clearable
+                        hide-details
+                        density="compact"
+                        @update:modelValue="update(r)"
+                      />
                     </v-col>
                   </v-row>
                   <v-row dense class="ga-2 mt-1">
@@ -417,7 +452,7 @@
                     <v-col cols="12" md="4">
                       <v-select
                         v-model="r.options.filterOperator"
-                        :items="['eq']"
+                        :items="['eq', 'neq', 'gt', 'lt', 'in', 'not_in', 'contains']"
                         label="operator"
                         clearable
                         hide-details
@@ -1311,6 +1346,17 @@ function buildTransformationsForRule(r: Rule): Transformation[] {
 
   transformations.push({ action: 'strip_whitespace', params: {} })
 
+  for (const script of r.customScripts ?? []) {
+    if (script === 'remove_special_chars') {
+      transformations.push({ action: 'remove_special_chars', params: {} })
+    } else if (script === 'deduplicate_within_cell') {
+      transformations.push({
+        action: 'deduplicate_within_cell',
+        params: r.options.delimiter ? { delimiter: r.options.delimiter } : {},
+      })
+    }
+  }
+
   if (r.options.delimiter) {
     if (r.options.separateNodes) {
       transformations.push({
@@ -1503,7 +1549,7 @@ async function runReport() {
 
       const step: CustomAnalysis = {
         type: 'custom',
-        output_name: `${r.column} — ${r.operation}`,
+        output_name: r.label?.trim() || `${r.column} — ${r.operation}`,
         filters,
         group_by: Array.isArray((r as any).group_by) ? (r as any).group_by : [],
         target_columns: [r.column],
@@ -1515,15 +1561,15 @@ async function runReport() {
       return step
     })
 
-store.setInsights(
-  correlationSources.value,
-  correlationTargets.value,
-  correlationThreshold.value,
-  correlationEnabled.value,
-  crosstabSources.value,
-  crosstabTargets.value,
-  crosstabEnabled.value,
-)
+store.patchInsights({
+  sources: correlationSources.value,
+  targets: correlationTargets.value,
+  threshold: correlationThreshold.value,
+  enabled: correlationEnabled.value,
+  crosstabSources: crosstabSources.value,
+  crosstabTargets: crosstabTargets.value,
+  crosstabEnabled: crosstabEnabled.value,
+})
 const insight = store.recipe.insights
 
 const analysisSteps: AnalysisRequest['analysis_steps'] = [...customSteps]

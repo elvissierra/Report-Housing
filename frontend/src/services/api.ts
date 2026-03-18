@@ -21,6 +21,8 @@ export type TransformationAction =
   | 'strip_whitespace'
   | 'to_numeric'
   | 'fill_na'
+  | 'remove_special_chars'
+  | 'deduplicate_within_cell'
 
 export interface Transformation {
   action: TransformationAction
