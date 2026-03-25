@@ -481,7 +481,7 @@ async def generate_report_endpoint(
         request_payload=request_data.model_dump(mode="json"),
         total_steps=len(request_data.analysis_steps),
         completed_steps=0,
-        started_at=datetime.now(timezone.utc),
+        started_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
     db.add(run)
     db.commit()
@@ -492,7 +492,7 @@ async def generate_report_endpoint(
         if len(raw_bytes) > MAX_UPLOAD_BYTES:
             run.status = "failed"
             run.error_message = "Uploaded file exceeds maximum allowed size."
-            run.finished_at = datetime.now(timezone.utc)
+            run.finished_at = datetime.now(timezone.utc).replace(tzinfo=None)
             db.commit()
             raise HTTPException(
                 status_code=413,
@@ -508,7 +508,7 @@ async def generate_report_endpoint(
         completed_steps = 0
 
         for index, block in enumerate(run_dynamic_analysis(input_df, request_data), start=1):
-            step_finished_at = datetime.now(timezone.utc)
+            step_finished_at = datetime.now(timezone.utc).replace(tzinfo=None)
             title_lower = block.title.lower()
             step = request_data.analysis_steps[index - 1]
             is_error_block = title_lower.startswith("error in step:")
@@ -629,7 +629,7 @@ async def generate_report_endpoint(
 
         run.status = "success"
         run.completed_steps = completed_steps
-        run.finished_at = datetime.now(timezone.utc)
+        run.finished_at = datetime.now(timezone.utc).replace(tzinfo=None)
         run.duration_seconds = (
             (run.finished_at - run.started_at).total_seconds()
             if run.started_at and run.finished_at
@@ -655,7 +655,7 @@ async def generate_report_endpoint(
     except Exception as e:
         run.status = "failed"
         run.error_message = str(e)
-        run.finished_at = datetime.now(timezone.utc)
+        run.finished_at = datetime.now(timezone.utc).replace(tzinfo=None)
         db.commit()
 
         logging.exception("Error in generate_report_endpoint")

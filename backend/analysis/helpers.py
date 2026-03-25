@@ -78,13 +78,15 @@ def apply_transformations(
             delimiter = params.get("delimiter")
             if not delimiter:
                 raise ValueError("split_and_explode requires a 'delimiter' in params.")
-            # Split into lists, then explode so each value is counted independently.
-            s = s.astype(str).str.split(delimiter).explode()
+            # regex=False forces exact string matching — without it, characters like
+            # | are interpreted as regex metacharacters (OR operator), causing
+            # incorrect splits on every word instead of the intended delimiter.
+            s = s.astype(str).str.split(delimiter, regex=False).explode()
         elif action == "to_root_node":
             delimiter = params.get("delimiter")
             if not delimiter:
                 raise ValueError("to_root_node requires a 'delimiter' in params.")
-            s = s.astype(str).str.split(delimiter).str[0]
+            s = s.astype(str).str.split(delimiter, regex=False).str[0]
         elif action == "strip_whitespace":
             s = s.astype(str).str.strip()
         elif action == "to_numeric":

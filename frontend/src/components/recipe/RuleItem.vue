@@ -16,7 +16,7 @@
       <v-col cols="12">
         <v-text-field
           v-model="local.label"
-          label="rule name (optional)"
+          label="rule description (optional)"
           density="compact"
           clearable
           hide-details
