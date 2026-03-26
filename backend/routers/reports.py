@@ -21,8 +21,8 @@ from sqlalchemy.orm import Session, selectinload
 
 router = APIRouter()
 
-# 50 MB — large enough for real-world CSVs, small enough to prevent DoS.
-MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+# 200 MB — raised to support larger real-world datasets.
+MAX_UPLOAD_BYTES = 200 * 1024 * 1024
 
 
 @router.get("/runs/", tags=["Reports"])
@@ -488,18 +488,7 @@ async def generate_report_endpoint(
     db.refresh(run)
 
     try:
-        raw_bytes = await input_file.read()
-        if len(raw_bytes) > MAX_UPLOAD_BYTES:
-            run.status = "failed"
-            run.error_message = "Uploaded file exceeds maximum allowed size."
-            run.finished_at = datetime.now(timezone.utc).replace(tzinfo=None)
-            db.commit()
-            raise HTTPException(
-                status_code=413,
-                detail=f"File too large. Maximum allowed size is {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.",
-            )
-
-        input_df = load_tabular_data(BytesIO(raw_bytes), input_file.filename)
+        input_df = load_tabular_data(input_file.file, input_file.filename)
         run.input_row_count = len(input_df.index)
         run.input_column_count = len(input_df.columns)
 
